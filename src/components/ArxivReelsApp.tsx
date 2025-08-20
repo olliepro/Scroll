@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Heart, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
@@ -65,7 +65,7 @@ export default function ArxivReelsApp() {
     if (!activeChannel) return;
     (async () => {
       setLoading(true);
-      setError(null);
+        setError(null);
       try {
         const res = await fetchArxiv(activeChannel);
         setEntries(res);
@@ -74,8 +74,8 @@ export default function ArxivReelsApp() {
           () => containerRef.current?.scrollTo({ top: 0, behavior: "auto" }),
           0
         );
-      } catch (e: any) {
-        setError(e?.message || "Failed to load papers from arXiv");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load papers from arXiv");
       } finally {
         setLoading(false);
       }
@@ -174,13 +174,13 @@ export default function ArxivReelsApp() {
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd, { passive: false });
 
-    return () => {
-      el.style.overflow = "auto";
-      el.removeEventListener("wheel", onWheel as any);
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-    };
+      return () => {
+        el.style.overflow = "auto";
+        el.removeEventListener("wheel", onWheel as EventListener);
+        el.removeEventListener("touchstart", onTouchStart as EventListener);
+        el.removeEventListener("touchmove", onTouchMove as EventListener);
+        el.removeEventListener("touchend", onTouchEnd as EventListener);
+      };
   }, [pageIndex, entries?.length]);
 
   function toggleSave(arxivId: string) {
@@ -219,30 +219,33 @@ export default function ArxivReelsApp() {
     });
   }, [entries, isSavedChannel, savedIds]);
 
-  return (
-    <div className="h-screen w-full bg-[#0b0b10] text-white flex flex-col overflow-hidden">
-      {/* Top bar */}
-      <div className="shrink-0 border-b border-white/10 backdrop-blur-xl bg-black/40">
-        <div className="px-3 py-2 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-purple-300" />
-          <div className="font-semibold tracking-wide">ArXiv Reels</div>
+    return (
+      <div className="h-screen w-full text-zinc-100 flex flex-col overflow-hidden relative">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(139,92,246,0.2)_0%,_transparent_60%),radial-gradient(ellipse_at_bottom_right,_rgba(56,189,248,0.15)_0%,_transparent_60%)]" />
+        {/* Top bar */}
+        <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
+          <div className="px-4 py-3 flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-fuchsia-400 animate-pulse" />
+            <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
+              ArXiv Reels
+            </div>
 
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setActiveId(SAVED_CHANNEL_ID)}
               className={clsx(
-                "px-3 py-1.5 rounded-md text-sm border",
+                "px-3 py-1.5 rounded-md text-sm border transition-colors",
                 isSavedChannel
-                  ? "bg-white/10 border-white/20"
+                  ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                   : "bg-white/5 border-white/10 hover:bg-white/10"
               )}
             >
               Saved
             </button>
-            <button
-              onClick={() => setAdding(true)}
-              className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90"
-            >
+              <button
+                onClick={() => setAdding(true)}
+                className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
+              >
               <span className="inline-flex items-center gap-1">
                 <Plus className="h-4 w-4" /> Channel
               </span>
@@ -257,9 +260,9 @@ export default function ArxivReelsApp() {
               <div
                 key={ch.id}
                 className={clsx(
-                  "group flex items-center pl-2 pr-2 py-1 rounded-full border",
+                  "group flex items-center pl-2 pr-2 py-1 rounded-full border transition-colors",
                   activeId === ch.id
-                    ? "bg-white/10 border-white/20"
+                    ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
               >
@@ -285,9 +288,9 @@ export default function ArxivReelsApp() {
             <button
               onClick={() => setActiveId(SAVED_CHANNEL_ID)}
               className={clsx(
-                "pl-2 pr-2 py-1 rounded-full border text-sm",
+                "pl-2 pr-2 py-1 rounded-full border text-sm transition-colors",
                 isSavedChannel
-                  ? "bg-white/10 border-white/20"
+                  ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                   : "bg-white/5 border-white/10 hover:bg-white/10"
               )}
             >
@@ -304,7 +307,7 @@ export default function ArxivReelsApp() {
           onClick={() => setAdding(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-900 text-white p-4"
+            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-lg font-semibold">Create a Channel</div>
@@ -322,7 +325,7 @@ export default function ArxivReelsApp() {
                     setNewChannel((p) => ({ ...p, name: e.target.value }))
                   }
                   placeholder="My Vision + LLMs"
-                  className="mt-1 w-full bg-black/50 border border-white/10 text-white rounded-md px-3 py-2"
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
                 />
               </div>
 
@@ -385,7 +388,7 @@ export default function ArxivReelsApp() {
                   className={clsx(
                     "px-3 py-1.5 rounded-md",
                     newChannel.name.trim()
-                      ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600"
+                      ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600 shadow-lg shadow-fuchsia-500/20"
                       : "bg-white/10 text-white/50"
                   )}
                   onClick={() =>

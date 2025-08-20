@@ -1,4 +1,3 @@
-import * as React from "react";
 import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart } from "lucide-react";
 import type { AltmetricCounts, ArxivEntry } from "../types";
@@ -31,8 +30,8 @@ export function PaperCard({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 120, damping: 18 }}
-          className="h-full w-full rounded-3xl bg-gradient-to-b from-[#17171f] to-[#0c0c12] border border-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] overflow-hidden flex flex-col"
-        >
+          className="relative h-full w-full rounded-3xl border border-white/10 overflow-hidden flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.4)]">
+          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-indigo-900/40 via-slate-900/80 to-slate-950" />
           {/* Header row */}
           <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-white/5">
             <div className="text-[11px] uppercase tracking-wider text-zinc-400">
@@ -111,7 +110,7 @@ export function PaperCard({
           </div>
 
           {/* Bottom metrics bar */}
-          <div className="mt-auto p-3 sm:p-4 border-t border-white/5 bg-black/30 backdrop-blur">
+          <div className="mt-auto p-3 sm:p-4 border-t border-white/5 bg-gradient-to-r from-black/40 via-slate-900/40 to-black/40 backdrop-blur">
             <div className="flex items-center gap-3">
               <MetricChip
                 icon={<XIcon className="h-4 w-4" />}
