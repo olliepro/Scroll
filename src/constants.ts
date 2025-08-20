@@ -14,9 +14,9 @@ export const CATEGORY_LABELS: Record<string, string> = {
   "econ.EM": "Econometrics",
 };
 
-export const LS_CHANNELS = "arxiv-reels:channels";
-export const LS_SAVED = "arxiv-reels:saved";
-export const LS_LAST_CHANNEL = "arxiv-reels:last-channel";
+export const LS_CHANNELS = "scroll:channels";
+export const LS_SAVED = "scroll:saved";
+export const LS_LAST_CHANNEL = "scroll:last-channel";
 
 export const defaultChannels: Channel[] = [
   {

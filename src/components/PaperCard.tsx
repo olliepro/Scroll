@@ -1,5 +1,6 @@
+import { useState } from "react";
 import { motion } from "framer-motion";
-import { ExternalLink, FileDown, Heart } from "lucide-react";
+import { ExternalLink, FileDown, Heart, X as CloseIcon } from "lucide-react";
 import type { AltmetricCounts, ArxivEntry } from "../types";
 import { CATEGORY_LABELS } from "../constants";
 import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
@@ -12,13 +13,16 @@ export function PaperCard({
   saved,
   onToggleSave,
   altCounts,
+  altStatus,
 }: {
   entry: ArxivEntry;
   index: number;
   saved: boolean;
   onToggleSave: () => void;
   altCounts: AltmetricCounts | null | undefined;
+  altStatus?: number;
 }) {
+  const [showAbstract, setShowAbstract] = useState(false);
   return (
     <section
       data-card="true"
@@ -78,7 +82,7 @@ export function PaperCard({
           </div>
 
           {/* Title + Authors */}
-          <div className="px-4 pt-4 pb-2 overflow-y-auto no-scrollbar">
+          <div className="px-4 pt-4 pb-2">
             <h2
               className="text-xl sm:text-2xl font-semibold leading-snug text-white"
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
@@ -102,11 +106,19 @@ export function PaperCard({
             <p
               className="mt-3 text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap"
               style={{
-                WebkitMaskImage: "linear-gradient(180deg, #000 80%, transparent)",
-                maskImage: "linear-gradient(180deg, #000 80%, transparent)",
+                display: "-webkit-box",
+                WebkitLineClamp: 8,
+                WebkitBoxOrient: "vertical",
+                overflow: "hidden",
               }}
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
             />
+            <button
+              className="mt-2 text-xs text-fuchsia-400 hover:underline"
+              onClick={() => setShowAbstract(true)}
+            >
+              See more
+            </button>
           </div>
 
           {/* Bottom metrics bar */}
@@ -137,8 +149,10 @@ export function PaperCard({
                   />
                 )}
               <div className="ml-auto text-[11px] text-zinc-400">
-                {typeof altCounts?.cited_by_accounts_count === "number" ||
-                typeof altCounts?.cited_by_posts_count === "number" ? (
+                {altStatus === 404 ? (
+                  <span className="opacity-60">Altmetric: No Social Metrics Yet</span>
+                ) : typeof altCounts?.cited_by_accounts_count === "number" ||
+                  typeof altCounts?.cited_by_posts_count === "number" ? (
                   <span>
                     {altCounts?.cited_by_accounts_count ?? "—"} accounts •{" "}
                     {altCounts?.cited_by_posts_count ?? "—"} posts
@@ -151,6 +165,29 @@ export function PaperCard({
           </div>
         </motion.div>
       </div>
+      {showAbstract && (
+        <div className="fixed inset-0 z-50 flex">
+          <div
+            className="flex-1 bg-black/60"
+            onClick={() => setShowAbstract(false)}
+          />
+          <div className="w-full max-w-md h-full bg-slate-900 shadow-xl overflow-y-auto">
+            <div className="p-4 border-b border-white/10 flex items-center justify-between">
+              <h3 className="font-semibold">Abstract</h3>
+              <button
+                onClick={() => setShowAbstract(false)}
+                className="p-1 rounded-md hover:bg-white/10"
+              >
+                <CloseIcon className="h-4 w-4" />
+              </button>
+            </div>
+            <div
+              className="p-4 text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap"
+              dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
+            />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

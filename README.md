@@ -1,6 +1,6 @@
-# React + TypeScript + Vite
+# Scroll
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+Scroll is a React + TypeScript + Vite app for browsing arXiv papers.
 
 Currently, two official plugins are available:
 

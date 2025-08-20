@@ -1,1 +1,1 @@
-export { default as ArxivReelsApp } from "./components/ArxivReelsApp";
+export { default as ScrollApp } from "./components/ScrollApp";

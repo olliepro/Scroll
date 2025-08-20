@@ -5,14 +5,19 @@ import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { CATEGORY_LABELS, LS_CHANNELS, LS_LAST_CHANNEL, LS_SAVED, defaultChannels } from "../constants";
-import type { AltmetricCounts, Channel, ArxivEntry, RateLimitInfo } from "../types";
+import type {
+  AltmetricCounts,
+  Channel,
+  ArxivEntry,
+  RateLimitInfo,
+} from "../types";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
 import "../styles/no-scrollbar";
 
 const SAVED_CHANNEL_ID = "__saved__";
 
-export default function ArxivReelsApp() {
+export default function ScrollApp() {
   const [channels, setChannels] = useLocalStorage<Channel[]>(
     LS_CHANNELS,
     defaultChannels
@@ -28,7 +33,7 @@ export default function ArxivReelsApp() {
   const [error, setError] = useState<string | null>(null);
 
   const [altCache, setAltCache] = useState<
-    Record<string, AltmetricCounts | null | undefined>
+    Record<string, { counts: AltmetricCounts | null; status?: number } | undefined>
   >({});
   const [rateInfo, setRateInfo] = useState<RateLimitInfo | null>(null);
   const [rateLimitHoldUntil, setRateLimitHoldUntil] = useState<number | null>(
@@ -104,13 +109,19 @@ export default function ArxivReelsApp() {
               try {
                 const { counts, rate, status, retryAfterSec } =
                   await fetchAltmetric(arxivId);
-                setAltCache((p) => ({ ...p, [arxivId]: counts }));
+                setAltCache((p) => ({
+                  ...p,
+                  [arxivId]: { counts, status },
+                }));
                 setRateInfo(rate);
                 if (status === 429 && retryAfterSec) {
                   setRateLimitHoldUntil(now + retryAfterSec * 1000);
                 }
               } catch {
-                setAltCache((p) => ({ ...p, [arxivId]: null }));
+                setAltCache((p) => ({
+                  ...p,
+                  [arxivId]: { counts: null },
+                }));
               }
             }
           }
@@ -230,7 +241,7 @@ export default function ArxivReelsApp() {
           <div className="px-4 py-3 flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-fuchsia-400 animate-pulse" />
             <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
-              ArXiv Reels
+              Scroll
             </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -445,7 +456,8 @@ export default function ArxivReelsApp() {
                   onToggleSave={() =>
                     toggleSave(e.arxivId.replace(/v\d+$/, ""))
                   }
-                  altCounts={altCache[e.arxivId]}
+                  altCounts={altCache[e.arxivId]?.counts}
+                  altStatus={altCache[e.arxivId]?.status}
                 />
               ))}
             </div>
