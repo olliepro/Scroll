@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart } from "lucide-react";
 import type { AltmetricCounts, ArxivEntry } from "../types";
 import { CATEGORY_LABELS } from "../constants";
-import { clsx, formatDateShort } from "../lib/utils";
+import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
 import { MetricChip } from "./MetricChip";
 import { XIcon, RedditIcon, WikipediaIcon } from "./icons/BrandIcons";
 
@@ -25,12 +25,12 @@ export function PaperCard({
       data-index={index}
       className="h-[calc(100vh-88px-36px)] w-full snap-start relative select-none"
     >
-      <div className="absolute inset-0 p-3 sm:p-6">
+      <div className="absolute inset-0 p-3 sm:p-6 flex justify-center">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 120, damping: 18 }}
-          className="relative h-full w-full rounded-3xl border border-white/10 overflow-hidden flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.4)]">
+          className="relative h-full w-full max-w-sm sm:max-w-md rounded-3xl border border-white/10 overflow-hidden flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.4)]">
           <div className="absolute inset-0 -z-10 bg-gradient-to-b from-indigo-900/40 via-slate-900/80 to-slate-950" />
           {/* Header row */}
           <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-white/5">
@@ -79,9 +79,10 @@ export function PaperCard({
 
           {/* Title + Authors */}
           <div className="px-4 pt-4 pb-2 overflow-y-auto no-scrollbar">
-            <h2 className="text-xl sm:text-2xl font-semibold leading-snug text-white">
-              {entry.title}
-            </h2>
+            <h2
+              className="text-xl sm:text-2xl font-semibold leading-snug text-white"
+              dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
+            />
             <div className="mt-1 text-sm text-zinc-400">
               {entry.authors.slice(0, 6).join(", ")}
               {entry.authors.length > 6 && " et al."}
@@ -104,29 +105,37 @@ export function PaperCard({
                 WebkitMaskImage: "linear-gradient(180deg, #000 80%, transparent)",
                 maskImage: "linear-gradient(180deg, #000 80%, transparent)",
               }}
-            >
-              {entry.summary}
-            </p>
+              dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
+            />
           </div>
 
           {/* Bottom metrics bar */}
           <div className="mt-auto p-3 sm:p-4 border-t border-white/5 bg-gradient-to-r from-black/40 via-slate-900/40 to-black/40 backdrop-blur">
             <div className="flex items-center gap-3">
-              <MetricChip
-                icon={<XIcon className="h-4 w-4" />}
-                label="X"
-                value={altCounts?.cited_by_tweeters_count}
-              />
-              <MetricChip
-                icon={<RedditIcon className="h-4 w-4" />}
-                label="Reddit"
-                value={altCounts?.cited_by_rdts_count}
-              />
-              <MetricChip
-                icon={<WikipediaIcon className="h-4 w-4" />}
-                label="Wikipedia"
-                value={altCounts?.cited_by_wikipedia_count}
-              />
+              {altCounts?.cited_by_tweeters_count &&
+                altCounts.cited_by_tweeters_count > 1 && (
+                  <MetricChip
+                    icon={<XIcon className="h-4 w-4" />}
+                    label="X"
+                    value={altCounts.cited_by_tweeters_count}
+                  />
+                )}
+              {altCounts?.cited_by_rdts_count &&
+                altCounts.cited_by_rdts_count > 1 && (
+                  <MetricChip
+                    icon={<RedditIcon className="h-4 w-4" />}
+                    label="Reddit"
+                    value={altCounts.cited_by_rdts_count}
+                  />
+                )}
+              {altCounts?.cited_by_wikipedia_count &&
+                altCounts.cited_by_wikipedia_count > 1 && (
+                  <MetricChip
+                    icon={<WikipediaIcon className="h-4 w-4" />}
+                    label="Wikipedia"
+                    value={altCounts.cited_by_wikipedia_count}
+                  />
+                )}
               <div className="ml-auto text-[11px] text-zinc-400">
                 {typeof altCounts?.cited_by_accounts_count === "number" ||
                 typeof altCounts?.cited_by_posts_count === "number" ? (

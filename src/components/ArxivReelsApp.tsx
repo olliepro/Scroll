@@ -65,7 +65,7 @@ export default function ArxivReelsApp() {
     if (!activeChannel) return;
     (async () => {
       setLoading(true);
-        setError(null);
+      setError(null);
       try {
         const res = await fetchArxiv(activeChannel);
         setEntries(res);
@@ -75,11 +75,14 @@ export default function ArxivReelsApp() {
           0
         );
       } catch (e: unknown) {
-        setError(e instanceof Error ? e.message : "Failed to load papers from arXiv");
+        setError(
+          e instanceof Error ? e.message : "Failed to load papers from arXiv"
+        );
       } finally {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id]);
 
   // Fetch Altmetrics for the fully visible card, with rate-limit respect
@@ -303,7 +306,7 @@ export default function ArxivReelsApp() {
       {/* Create Channel modal */}
       {adding && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
           onClick={() => setAdding(false)}
         >
           <div

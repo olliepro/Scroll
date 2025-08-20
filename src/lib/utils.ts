@@ -28,3 +28,23 @@ export function tokenizeKeywords(s: string): string[] {
     .map((t) => t.replace(/^"(.*)"$/, "$1").trim())
     .filter(Boolean);
 }
+
+import katex from "katex";
+
+function escapeHtml(str: string) {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+export function renderLaTeX(text: string): string {
+  const parts = text.split(/\$(.+?)\$/g);
+  return parts
+    .map((part, i) =>
+      i % 2 === 1
+        ? katex.renderToString(part, { throwOnError: false })
+        : escapeHtml(part)
+    )
+    .join("");
+}
