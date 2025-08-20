@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
@@ -302,33 +303,34 @@ export default function ArxivReelsApp() {
       </div>
 
       {/* Create Channel modal */}
-        {adding && (
-          <div
-            className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
-            onClick={() => setAdding(false)}
-          >
-          <div
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-lg font-semibold">Create a Channel</div>
-            <div className="text-zinc-400 text-sm">
-              Channels are sets of filters: keywords and arXiv categories. Newest
-              first.
-            </div>
+{adding &&
+  createPortal(
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
+      onClick={() => setAdding(false)}
+    >
+      <div
+        className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="text-lg font-semibold">Create a Channel</div>
+        <div className="text-zinc-400 text-sm">
+          Channels are sets of filters: keywords and arXiv categories. Newest
+          first.
+        </div>
 
-            <div className="space-y-3 mt-3">
-              <div>
-                <label className="text-sm text-zinc-300">Name</label>
-                <input
-                  value={newChannel.name}
-                  onChange={(e) =>
-                    setNewChannel((p) => ({ ...p, name: e.target.value }))
-                  }
-                  placeholder="My Vision + LLMs"
-                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
-                />
-              </div>
+        <div className="space-y-3 mt-3">
+          <div>
+            <label className="text-sm text-zinc-300">Name</label>
+            <input
+              value={newChannel.name}
+              onChange={(e) =>
+                setNewChannel((p) => ({ ...p, name: e.target.value }))
+              }
+              placeholder="My Vision + LLMs"
+              className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+            />
+          </div>
 
               <div>
                 <label className="text-sm text-zinc-300">Keywords</label>
@@ -406,7 +408,8 @@ export default function ArxivReelsApp() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Scroll container */}
