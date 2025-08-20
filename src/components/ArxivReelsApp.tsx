@@ -80,6 +80,7 @@ export default function ArxivReelsApp() {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id]);
 
   // Fetch Altmetrics for the fully visible card, with rate-limit respect
@@ -301,11 +302,11 @@ export default function ArxivReelsApp() {
       </div>
 
       {/* Create Channel modal */}
-      {adding && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
-          onClick={() => setAdding(false)}
-        >
+        {adding && (
+          <div
+            className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
+            onClick={() => setAdding(false)}
+          >
           <div
             className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4"
             onClick={(e) => e.stopPropagation()}

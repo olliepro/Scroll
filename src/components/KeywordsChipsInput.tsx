@@ -44,7 +44,8 @@ export function KeywordsChipsInput({
       .map((t) => (t.includes(" ") ? `"${t}"` : t))
       .join(" ");
     onChange(serialized);
-  }, [tokens, onChange]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tokens]);
 
   return (
     <div className="min-h-10 w-full rounded-md border border-white/10 bg-black/50 px-2 py-1.5 flex flex-wrap gap-1 focus-within:ring-2 focus-within:ring-fuchsia-600">

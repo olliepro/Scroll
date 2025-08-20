@@ -5,6 +5,7 @@ import { CATEGORY_LABELS } from "../constants";
 import { clsx, formatDateShort } from "../lib/utils";
 import { MetricChip } from "./MetricChip";
 import { XIcon, RedditIcon, WikipediaIcon } from "./icons/BrandIcons";
+import { renderLatex } from "../lib/latex";
 
 export function PaperCard({
   entry,
@@ -25,12 +26,12 @@ export function PaperCard({
       data-index={index}
       className="h-[calc(100vh-88px-36px)] w-full snap-start relative select-none"
     >
-      <div className="absolute inset-0 p-3 sm:p-6">
+      <div className="absolute inset-0 flex items-center justify-center p-3 sm:p-6">
         <motion.div
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 120, damping: 18 }}
-          className="relative h-full w-full rounded-3xl border border-white/10 overflow-hidden flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.4)]">
+          className="relative h-full max-h-full aspect-[9/16] w-full max-w-sm rounded-3xl border border-white/10 overflow-hidden flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.4)]">
           <div className="absolute inset-0 -z-10 bg-gradient-to-b from-indigo-900/40 via-slate-900/80 to-slate-950" />
           {/* Header row */}
           <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-white/5">
@@ -80,7 +81,7 @@ export function PaperCard({
           {/* Title + Authors */}
           <div className="px-4 pt-4 pb-2 overflow-y-auto no-scrollbar">
             <h2 className="text-xl sm:text-2xl font-semibold leading-snug text-white">
-              {entry.title}
+              {renderLatex(entry.title)}
             </h2>
             <div className="mt-1 text-sm text-zinc-400">
               {entry.authors.slice(0, 6).join(", ")}
@@ -105,7 +106,7 @@ export function PaperCard({
                 maskImage: "linear-gradient(180deg, #000 80%, transparent)",
               }}
             >
-              {entry.summary}
+              {renderLatex(entry.summary)}
             </p>
           </div>
 
