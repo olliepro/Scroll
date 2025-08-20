@@ -13,7 +13,9 @@ export function useLocalStorage<T>(key: string, init: T) {
   useEffect(() => {
     try {
       localStorage.setItem(key, JSON.stringify(value));
-    } catch {}
+    } catch {
+      // ignore write errors
+    }
   }, [key, value]);
 
   return [value, setValue] as const;
