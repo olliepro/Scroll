@@ -31,11 +31,11 @@ export function PaperCard({
           initial={{ opacity: 0, y: 16 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ type: "spring", stiffness: 120, damping: 18 }}
-          className="h-full w-full rounded-3xl bg-gradient-to-b from-[#17171f] to-[#0c0c12] border border-white/10 shadow-[0_0_0_1px_rgba(255,255,255,0.03)] overflow-hidden flex flex-col"
+          className="h-full w-full rounded-3xl bg-gradient-to-b from-white to-slate-50 border border-slate-200 shadow-lg overflow-hidden flex flex-col"
         >
           {/* Header row */}
-          <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-white/5">
-            <div className="text-[11px] uppercase tracking-wider text-zinc-400">
+          <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-slate-200">
+            <div className="text-[11px] uppercase tracking-wider text-slate-500">
               {formatDateShort(entry.published)}
             </div>
             <div className="ml-auto flex items-center gap-2">
@@ -43,7 +43,7 @@ export function PaperCard({
                 href={entry.link}
                 target="_blank"
                 rel="noreferrer"
-                className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1"
+                className="px-2 py-1 text-xs rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-300 flex items-center gap-1"
               >
                 <ExternalLink className="h-3.5 w-3.5" />
                 Open
@@ -53,7 +53,7 @@ export function PaperCard({
                   href={entry.pdfUrl}
                   target="_blank"
                   rel="noreferrer"
-                  className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1"
+                  className="px-2 py-1 text-xs rounded-full bg-slate-100 hover:bg-slate-200 border border-slate-300 flex items-center gap-1"
                 >
                   <FileDown className="h-3.5 w-3.5" />
                   PDF
@@ -64,8 +64,8 @@ export function PaperCard({
                 className={clsx(
                   "px-2 py-1 text-xs rounded-full border flex items-center gap-1",
                   saved
-                    ? "bg-fuchsia-600/20 border-fuchsia-500 text-fuchsia-200"
-                    : "bg-white/5 hover:bg-white/10 border-white/10"
+                    ? "bg-fuchsia-100 border-fuchsia-300 text-fuchsia-700"
+                    : "bg-slate-100 hover:bg-slate-200 border-slate-300"
                 )}
               >
                 {saved ? (
@@ -80,10 +80,10 @@ export function PaperCard({
 
           {/* Title + Authors */}
           <div className="px-4 pt-4 pb-2 overflow-y-auto no-scrollbar">
-            <h2 className="text-xl sm:text-2xl font-semibold leading-snug text-white">
+            <h2 className="text-xl sm:text-2xl font-semibold leading-snug text-slate-900">
               {entry.title}
             </h2>
-            <div className="mt-1 text-sm text-zinc-400">
+            <div className="mt-1 text-sm text-slate-600">
               {entry.authors.slice(0, 6).join(", ")}
               {entry.authors.length > 6 && " et al."}
             </div>
@@ -92,7 +92,7 @@ export function PaperCard({
               {entry.categories.slice(0, 6).map((c) => (
                 <span
                   key={c}
-                  className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300"
+                  className="px-2 py-0.5 rounded-full bg-indigo-100 border border-indigo-200 text-[11px] text-indigo-700"
                 >
                   {CATEGORY_LABELS[c] || c}
                 </span>
@@ -100,7 +100,7 @@ export function PaperCard({
             </div>
             {/* Abstract */}
             <p
-              className="mt-3 text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap"
+              className="mt-3 text-sm text-slate-700 leading-relaxed whitespace-pre-wrap"
               style={{
                 WebkitMaskImage: "linear-gradient(180deg, #000 80%, transparent)",
                 maskImage: "linear-gradient(180deg, #000 80%, transparent)",
@@ -111,7 +111,7 @@ export function PaperCard({
           </div>
 
           {/* Bottom metrics bar */}
-          <div className="mt-auto p-3 sm:p-4 border-t border-white/5 bg-black/30 backdrop-blur">
+          <div className="mt-auto p-3 sm:p-4 border-t border-slate-200 bg-white/70 backdrop-blur">
             <div className="flex items-center gap-3">
               <MetricChip
                 icon={<XIcon className="h-4 w-4" />}
@@ -128,7 +128,7 @@ export function PaperCard({
                 label="Wikipedia"
                 value={altCounts?.cited_by_wikipedia_count}
               />
-              <div className="ml-auto text-[11px] text-zinc-400">
+              <div className="ml-auto text-[11px] text-slate-600">
                 {typeof altCounts?.cited_by_accounts_count === "number" ||
                 typeof altCounts?.cited_by_posts_count === "number" ? (
                   <span>

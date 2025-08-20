@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Heart, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
@@ -74,8 +74,9 @@ export default function ArxivReelsApp() {
           () => containerRef.current?.scrollTo({ top: 0, behavior: "auto" }),
           0
         );
-      } catch (e: any) {
-        setError(e?.message || "Failed to load papers from arXiv");
+      } catch (e: unknown) {
+        const err = e as { message?: string };
+        setError(err?.message || "Failed to load papers from arXiv");
       } finally {
         setLoading(false);
       }
@@ -176,10 +177,10 @@ export default function ArxivReelsApp() {
 
     return () => {
       el.style.overflow = "auto";
-      el.removeEventListener("wheel", onWheel as any);
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
+      el.removeEventListener("wheel", onWheel as EventListener);
+      el.removeEventListener("touchstart", onTouchStart as EventListener);
+      el.removeEventListener("touchmove", onTouchMove as EventListener);
+      el.removeEventListener("touchend", onTouchEnd as EventListener);
     };
   }, [pageIndex, entries?.length]);
 
@@ -220,28 +221,28 @@ export default function ArxivReelsApp() {
   }, [entries, isSavedChannel, savedIds]);
 
   return (
-    <div className="h-screen w-full bg-[#0b0b10] text-white flex flex-col overflow-hidden">
+    <div className="h-screen w-full flex flex-col overflow-hidden bg-gradient-to-br from-indigo-50 via-white to-purple-50 text-slate-800">
       {/* Top bar */}
-      <div className="shrink-0 border-b border-white/10 backdrop-blur-xl bg-black/40">
+      <div className="shrink-0 border-b border-slate-200 backdrop-blur-xl bg-white/70">
         <div className="px-3 py-2 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-purple-300" />
+          <Sparkles className="h-5 w-5 text-indigo-500" />
           <div className="font-semibold tracking-wide">ArXiv Reels</div>
 
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setActiveId(SAVED_CHANNEL_ID)}
               className={clsx(
-                "px-3 py-1.5 rounded-md text-sm border",
+                "px-3 py-1.5 rounded-md text-sm border transition-colors",
                 isSavedChannel
-                  ? "bg-white/10 border-white/20"
-                  : "bg-white/5 border-white/10 hover:bg-white/10"
+                  ? "bg-indigo-100 border-indigo-300 text-indigo-700"
+                  : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
               )}
             >
               Saved
             </button>
             <button
               onClick={() => setAdding(true)}
-              className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90"
+              className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white hover:opacity-90"
             >
               <span className="inline-flex items-center gap-1">
                 <Plus className="h-4 w-4" /> Channel
@@ -259,8 +260,8 @@ export default function ArxivReelsApp() {
                 className={clsx(
                   "group flex items-center pl-2 pr-2 py-1 rounded-full border",
                   activeId === ch.id
-                    ? "bg-white/10 border-white/20"
-                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                    ? "bg-indigo-100 border-indigo-300 text-indigo-700"
+                    : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
                 )}
               >
                 <button
@@ -273,7 +274,7 @@ export default function ArxivReelsApp() {
                 <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
                   <button
                     onClick={() => removeChannel(ch.id)}
-                    className="p-1 rounded-full hover:bg-white/10"
+                    className="p-1 rounded-full hover:bg-slate-100"
                     title="Delete"
                     aria-label={`Delete ${ch.name}`}
                   >
@@ -287,8 +288,8 @@ export default function ArxivReelsApp() {
               className={clsx(
                 "pl-2 pr-2 py-1 rounded-full border text-sm",
                 isSavedChannel
-                  ? "bg-white/10 border-white/20"
-                  : "bg-white/5 border-white/10 hover:bg-white/10"
+                  ? "bg-indigo-100 border-indigo-300 text-indigo-700"
+                  : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
               )}
             >
               Saved
@@ -300,34 +301,34 @@ export default function ArxivReelsApp() {
       {/* Create Channel modal */}
       {adding && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/40 p-4"
           onClick={() => setAdding(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-900 text-white p-4"
+            className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white text-slate-800 p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-lg font-semibold">Create a Channel</div>
-            <div className="text-zinc-400 text-sm">
+            <div className="text-slate-500 text-sm">
               Channels are sets of filters: keywords and arXiv categories. Newest
               first.
             </div>
 
             <div className="space-y-3 mt-3">
               <div>
-                <label className="text-sm text-zinc-300">Name</label>
+                <label className="text-sm text-slate-700">Name</label>
                 <input
                   value={newChannel.name}
                   onChange={(e) =>
                     setNewChannel((p) => ({ ...p, name: e.target.value }))
                   }
                   placeholder="My Vision + LLMs"
-                  className="mt-1 w-full bg-black/50 border border-white/10 text-white rounded-md px-3 py-2"
+                  className="mt-1 w-full bg-white border-slate-300 text-slate-800 rounded-md px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="text-sm text-zinc-300">Keywords</label>
+                <label className="text-sm text-slate-700">Keywords</label>
                 <div className="mt-1">
                   <KeywordsChipsInput
                     value={newChannel.keywords}
@@ -337,13 +338,13 @@ export default function ArxivReelsApp() {
                     placeholder={"Type a keyword, press Enter — use quotes for phrases"}
                   />
                 </div>
-                <div className="text-[11px] text-zinc-400 mt-1">
+                <div className="text-[11px] text-slate-500 mt-1">
                   Example: <code>"vision-language" retrieval RAG "policy gradient"</code>
                 </div>
               </div>
 
               <div>
-                <label className="text-sm text-zinc-300">Categories</label>
+                <label className="text-sm text-slate-700">Categories</label>
                 <div className="flex flex-wrap gap-2 mt-2">
                   {Object.entries(CATEGORY_LABELS).map(([code, label]) => {
                     const active = newChannel.categories.includes(code);
@@ -361,8 +362,8 @@ export default function ArxivReelsApp() {
                         className={clsx(
                           "px-2.5 py-1 rounded-full text-xs border",
                           active
-                            ? "bg-fuchsia-600/30 border-fuchsia-500 text-fuchsia-200"
-                            : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10"
+                            ? "bg-fuchsia-100 border-fuchsia-300 text-fuchsia-700"
+                            : "bg-white border-slate-300 text-slate-600 hover:bg-slate-50"
                         )}
                       >
                         {label}
@@ -375,7 +376,7 @@ export default function ArxivReelsApp() {
 
               <div className="flex justify-end gap-2 pt-2">
                 <button
-                  className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10"
+                  className="px-3 py-1.5 rounded-md bg-white border border-slate-300 text-slate-600 hover:bg-slate-50"
                   onClick={() => setAdding(false)}
                 >
                   Cancel
@@ -385,8 +386,8 @@ export default function ArxivReelsApp() {
                   className={clsx(
                     "px-3 py-1.5 rounded-md",
                     newChannel.name.trim()
-                      ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600"
-                      : "bg-white/10 text-white/50"
+                      ? "bg-gradient-to-r from-fuchsia-500 to-indigo-500 text-white"
+                      : "bg-slate-100 text-slate-400"
                   )}
                   onClick={() =>
                     addChannel({
@@ -409,7 +410,7 @@ export default function ArxivReelsApp() {
       <div ref={containerRef} className="flex-1 relative">
         {loading && (
           <div className="absolute inset-0 grid place-items-center">
-            <div className="flex items-center gap-2 text-zinc-400">
+            <div className="flex items-center gap-2 text-slate-500">
               <Loader2 className="h-5 w-5 animate-spin" />
               <span>Loading newest papers…</span>
             </div>
@@ -417,9 +418,9 @@ export default function ArxivReelsApp() {
         )}
         {error && (
           <div className="absolute inset-0 grid place-items-center">
-            <div className="text-center text-zinc-300">
+            <div className="text-center text-slate-700">
               <div className="font-semibold mb-1">Couldn’t load arXiv</div>
-              <div className="text-sm text-zinc-400">{error}</div>
+              <div className="text-sm text-slate-500">{error}</div>
             </div>
           </div>
         )}
@@ -448,7 +449,7 @@ export default function ArxivReelsApp() {
       </div>
 
       {/* Footer: rate limit + page indicator */}
-      <div className="shrink-0 px-3 py-2 text-xs text-zinc-400 flex items-center gap-3 border-t border-white/5 bg-black/40 backdrop-blur-xl">
+      <div className="shrink-0 px-3 py-2 text-xs text-slate-500 flex items-center gap-3 border-t border-slate-200 bg-white/70 backdrop-blur-xl">
         <div>
           {entries ? (
             <span>
