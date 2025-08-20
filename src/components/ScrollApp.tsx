@@ -182,7 +182,7 @@ export default function ScrollApp() {
     const el = containerRef.current;
     if (!el) return;
 
-    const SCROLL_LOCK_MS = 550;
+    const SCROLL_LOCK_MS = 275;
     function scrollToIndex(idx: number) {
       if (!el) return;
       const clamped = Math.max(0, Math.min(idx, (entries?.length || 1) - 1));
@@ -224,11 +224,25 @@ export default function ScrollApp() {
       else scrollToIndex(pageIndex - 1);
     }
 
+    function onKeyDown(e: KeyboardEvent) {
+      if (scrollLock.current) return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        scrollToIndex(pageIndex + 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        scrollToIndex(pageIndex - 1);
+      }
+    }
+
     el.style.overflow = "hidden";
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd, { passive: false });
+    window.addEventListener("keydown", onKeyDown as EventListener);
 
       return () => {
         el.style.overflow = "auto";
@@ -236,6 +250,7 @@ export default function ScrollApp() {
         el.removeEventListener("touchstart", onTouchStart as EventListener);
         el.removeEventListener("touchmove", onTouchMove as EventListener);
         el.removeEventListener("touchend", onTouchEnd as EventListener);
+        window.removeEventListener("keydown", onKeyDown as EventListener);
       };
   }, [pageIndex, entries?.length]);
 
@@ -288,7 +303,7 @@ export default function ScrollApp() {
           <div className="px-4 py-3 flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-fuchsia-400 animate-pulse" />
             <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
-              Scroll
+              Scrolls
             </div>
 
           <div className="ml-auto flex items-center gap-2">
