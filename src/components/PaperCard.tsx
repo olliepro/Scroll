@@ -1,4 +1,3 @@
-import * as React from "react";
 import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart } from "lucide-react";
 import type { AltmetricCounts, ArxivEntry } from "../types";

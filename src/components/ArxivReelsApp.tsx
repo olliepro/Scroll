@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Heart, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
@@ -65,7 +65,7 @@ export default function ArxivReelsApp() {
     if (!activeChannel) return;
     (async () => {
       setLoading(true);
-      setError(null);
+        setError(null);
       try {
         const res = await fetchArxiv(activeChannel);
         setEntries(res);
@@ -74,8 +74,8 @@ export default function ArxivReelsApp() {
           () => containerRef.current?.scrollTo({ top: 0, behavior: "auto" }),
           0
         );
-      } catch (e: any) {
-        setError(e?.message || "Failed to load papers from arXiv");
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "Failed to load papers from arXiv");
       } finally {
         setLoading(false);
       }
@@ -174,13 +174,13 @@ export default function ArxivReelsApp() {
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd, { passive: false });
 
-    return () => {
-      el.style.overflow = "auto";
-      el.removeEventListener("wheel", onWheel as any);
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-    };
+      return () => {
+        el.style.overflow = "auto";
+        el.removeEventListener("wheel", onWheel as EventListener);
+        el.removeEventListener("touchstart", onTouchStart as EventListener);
+        el.removeEventListener("touchmove", onTouchMove as EventListener);
+        el.removeEventListener("touchend", onTouchEnd as EventListener);
+      };
   }, [pageIndex, entries?.length]);
 
   function toggleSave(arxivId: string) {
@@ -219,13 +219,13 @@ export default function ArxivReelsApp() {
     });
   }, [entries, isSavedChannel, savedIds]);
 
-  return (
-    <div className="h-screen w-full bg-[#0b0b10] text-white flex flex-col overflow-hidden">
-      {/* Top bar */}
-      <div className="shrink-0 border-b border-white/10 backdrop-blur-xl bg-black/40">
-        <div className="px-3 py-2 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-purple-300" />
-          <div className="font-semibold tracking-wide">ArXiv Reels</div>
+    return (
+      <div className="h-screen w-full bg-gradient-to-br from-slate-950 via-zinc-900 to-slate-950 text-zinc-100 flex flex-col overflow-hidden">
+        {/* Top bar */}
+        <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
+          <div className="px-4 py-3 flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-purple-300" />
+            <div className="text-lg font-bold tracking-wide">ArXiv Reels</div>
 
           <div className="ml-auto flex items-center gap-2">
             <button
