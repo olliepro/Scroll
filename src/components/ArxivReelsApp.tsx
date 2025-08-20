@@ -245,7 +245,10 @@ export default function ArxivReelsApp() {
               Saved
             </button>
               <button
-                onClick={() => setAdding(true)}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setAdding(true);
+                }}
                 className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
               >
               <span className="inline-flex items-center gap-1">
