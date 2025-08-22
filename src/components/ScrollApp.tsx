@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
+import { Loader2, Plus, Trash2, Bookmark } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
@@ -7,8 +7,9 @@ import { useLocalStorage } from "../hooks/useLocalStorage";
 import {
   CATEGORY_LABELS,
   LS_CHANNELS,
+  LS_LISTS,
   LS_LAST_CHANNEL,
-  LS_SAVED,
+  LS_STATUSES,
   defaultChannels,
 } from "../constants";
 import type {
@@ -16,19 +17,23 @@ import type {
   Channel,
   ArxivEntry,
   RateLimitInfo,
+  SavedList,
 } from "../types";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
 import "../styles/no-scrollbar";
 
-const SAVED_CHANNEL_ID = "__saved__";
+const scrollIcon = "/scroll.png";
 
 export default function ScrollApp() {
   const [channels, setChannels] = useLocalStorage<Channel[]>(
     LS_CHANNELS,
     defaultChannels
   );
-  const [savedIds, setSavedIds] = useLocalStorage<string[]>(LS_SAVED, []);
+  const [savedLists, setSavedLists] = useLocalStorage<SavedList[]>(
+    LS_LISTS,
+    []
+  );
   const [activeId, setActiveId] = useLocalStorage<string>(
     LS_LAST_CHANNEL,
     channels[0]?.id || "recent-ml"
@@ -71,20 +76,116 @@ export default function ScrollApp() {
   const touchStartY = useRef<number | null>(null);
   const lastPositions = useRef<Record<string, number>>({});
   const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const [statuses, setStatuses] = useState<
+  const longPressTimeout = useRef<number | null>(null);
+  const longPressTriggered = useRef(false);
+  const [statuses, setStatuses] = useLocalStorage<
     Record<string, "unviewed" | "viewed" | "read">
-  >({});
+  >(LS_STATUSES, {});
   const statusesRef = useRef(statuses);
   useEffect(() => {
     statusesRef.current = statuses;
   }, [statuses]);
 
+  const [unviewedCounts, setUnviewedCounts] = useState<Record<string, number>>(
+    {}
+  );
+
+  const [saveTarget, setSaveTarget] = useState<ArxivEntry | null>(null);
+  const [newListName, setNewListName] = useState("");
+
+  const isTouchDevice =
+    typeof window !== "undefined" &&
+    ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+  const SCROLL_LOCK_MS = 275;
+
+  const scrollToIndex = useCallback(
+    (idx: number) => {
+      const el = containerRef.current;
+      if (!el) return;
+      const clamped = Math.max(0, Math.min(idx, (entries?.length || 1) - 1));
+      const target = el.querySelector(
+        `[data-index="${clamped}"]`
+      ) as HTMLElement | null;
+      if (target) {
+        scrollLock.current = true;
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => {
+          scrollLock.current = false;
+        }, SCROLL_LOCK_MS);
+      }
+    },
+    [entries]
+  );
+
+  function startLongPress(
+    type: "channel" | "list",
+    id: string,
+    name: string
+  ) {
+    if (!isTouchDevice) return;
+    longPressTriggered.current = false;
+    if (longPressTimeout.current) clearTimeout(longPressTimeout.current);
+    longPressTimeout.current = window.setTimeout(() => {
+      longPressTriggered.current = true;
+      if (window.confirm(`Delete ${name}?`)) {
+        if (type === "channel") removeChannel(id);
+        else removeList(id);
+      }
+    }, 600);
+  }
+
+  function cancelLongPress(e?: TouchEvent) {
+    if (!isTouchDevice) return;
+    if (longPressTimeout.current) clearTimeout(longPressTimeout.current);
+    if (longPressTriggered.current && e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
+
   const activeChannel: Channel | null = useMemo(
     () => channels.find((c) => c.id === activeId) || null,
     [channels, activeId]
   );
+  const activeList: SavedList | null = useMemo(
+    () => savedLists.find((l) => `list:${l.id}` === activeId) || null,
+    [savedLists, activeId]
+  );
 
   useEffect(() => {
+    if (!activeChannel || !entries) return;
+    const count = entries.filter(
+      (e) =>
+        statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
+    ).length;
+    setUnviewedCounts((p) => ({ ...p, [activeChannel.id]: count }));
+  }, [activeChannel, entries, statuses]);
+
+  useEffect(() => {
+    if (!activeChannel && !activeList && channels[0]) {
+      setActiveId(channels[0].id);
+    }
+  }, [activeChannel, activeList, channels, setActiveId]);
+
+  useEffect(() => {
+    if (activeList) {
+      setLoading(false);
+      setError(null);
+      setEntries(activeList.papers);
+      Object.values(viewTimers.current).forEach(clearTimeout);
+      viewTimers.current = {};
+      const stored = lastPositions.current[activeId] || 0;
+      setPageIndex(stored);
+      setTimeout(() => {
+        const target = containerRef.current?.querySelector(
+          `[data-index="${stored}"]`
+        ) as HTMLElement | null;
+        if (target) target.scrollIntoView({ behavior: "auto", block: "start" });
+        else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
+      }, 0);
+      return;
+    }
     if (!activeChannel) return;
     (async () => {
       setLoading(true);
@@ -112,7 +213,7 @@ export default function ScrollApp() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeChannel?.id]);
+  }, [activeChannel?.id, activeList?.id]);
 
   // Fetch Altmetrics for the fully visible card, with rate-limit respect
   useEffect(() => {
@@ -134,7 +235,7 @@ export default function ScrollApp() {
                     ...p,
                     [arxivId]: p[arxivId] === "read" ? "read" : "viewed",
                   }));
-                }, 5000);
+                }, 2000);
               }
             }
 
@@ -171,7 +272,7 @@ export default function ScrollApp() {
     const cards = containerRef.current?.querySelectorAll("[data-card=true]");
     cards?.forEach((c) => observer.observe(c));
     return () => observer.disconnect();
-  }, [entries, altCache, rateLimitHoldUntil]);
+  }, [entries, altCache, rateLimitHoldUntil, setStatuses]);
 
   useEffect(() => {
     lastPositions.current[activeId] = pageIndex;
@@ -181,22 +282,6 @@ export default function ScrollApp() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-
-    const SCROLL_LOCK_MS = 275;
-    function scrollToIndex(idx: number) {
-      if (!el) return;
-      const clamped = Math.max(0, Math.min(idx, (entries?.length || 1) - 1));
-      const target = el.querySelector(
-        `[data-index="${clamped}"]`
-      ) as HTMLElement | null;
-      if (target) {
-        scrollLock.current = true;
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        setTimeout(() => {
-          scrollLock.current = false;
-        }, SCROLL_LOCK_MS);
-      }
-    }
 
     function onWheel(e: WheelEvent) {
       if (scrollLock.current) return e.preventDefault();
@@ -252,14 +337,59 @@ export default function ScrollApp() {
         el.removeEventListener("touchend", onTouchEnd as EventListener);
         window.removeEventListener("keydown", onKeyDown as EventListener);
       };
-  }, [pageIndex, entries?.length]);
+  }, [pageIndex, entries?.length, scrollToIndex]);
 
-  function toggleSave(arxivId: string) {
-    markRead(arxivId);
-    setSavedIds((prev) =>
-      prev.includes(arxivId)
-        ? prev.filter((x) => x !== arxivId)
-        : [...prev, arxivId]
+  function openSaveMenu(entry: ArxivEntry) {
+    markRead(entry.arxivId);
+    setSaveTarget(entry);
+  }
+
+  function togglePaperInList(listId: string) {
+    if (!saveTarget) return;
+    const base = saveTarget.arxivId.replace(/v\d+$/, "");
+    setSavedLists((prev) =>
+      prev.map((l) => {
+        if (l.id !== listId) return l;
+        const exists = l.papers.some(
+          (p) =>
+            p.arxivId === saveTarget.arxivId ||
+            p.arxivId.replace(/v\d+$/, "") === base
+        );
+        const papers = exists
+          ? l.papers.filter(
+              (p) =>
+                !(
+                  p.arxivId === saveTarget.arxivId ||
+                  p.arxivId.replace(/v\d+$/, "") === base
+                )
+            )
+          : [...l.papers, saveTarget];
+        return { ...l, papers };
+      })
+    );
+  }
+
+  function createList() {
+    if (!saveTarget || !newListName.trim()) return;
+    const id =
+      newListName.toLowerCase().replace(/\s+/g, "-") +
+      "-" +
+      Math.random().toString(36).slice(2, 7);
+    const newList: SavedList = {
+      id,
+      name: newListName.trim(),
+      papers: [saveTarget],
+    };
+    setSavedLists((p) => [...p, newList]);
+    setNewListName("");
+  }
+
+  function isSaved(id: string) {
+    const base = id.replace(/v\d+$/, "");
+    return savedLists.some((l) =>
+      l.papers.some(
+        (p) => p.arxivId === id || p.arxivId.replace(/v\d+$/, "") === base
+      )
     );
   }
 
@@ -284,16 +414,18 @@ export default function ScrollApp() {
     if (activeId === id) setActiveId(channels[0]?.id || "");
   }
 
-  const isSavedChannel = activeId === SAVED_CHANNEL_ID;
-  const visibleEntries = useMemo(() => {
-    if (!entries) return [];
-    if (!isSavedChannel) return entries;
-    const savedSet = new Set(savedIds);
-    return entries.filter((e) => {
-      const base = e.arxivId.replace(/v\d+$/, "");
-      return savedSet.has(e.arxivId) || savedSet.has(base);
-    });
-  }, [entries, isSavedChannel, savedIds]);
+  function removeList(id: string) {
+    setSavedLists((prev) => prev.filter((l) => l.id !== id));
+    if (activeId === `list:${id}`) setActiveId(channels[0]?.id || "");
+  }
+
+  const visibleEntries = useMemo(() => entries || [], [entries]);
+
+  const firstUnreadIndex = useMemo(
+    () =>
+      visibleEntries.findIndex((e) => statuses[e.arxivId] !== "read"),
+    [visibleEntries, statuses]
+  );
 
     return (
       <div className="h-screen w-full text-zinc-100 flex flex-col overflow-hidden relative">
@@ -301,31 +433,30 @@ export default function ScrollApp() {
         {/* Top bar */}
         <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
           <div className="px-4 py-3 flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-fuchsia-400 animate-pulse" />
+            <div
+              className="h-9 w-9 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400"
+              style={{
+                WebkitMaskImage: `url(${scrollIcon})`,
+                maskImage: `url(${scrollIcon})`,
+                WebkitMaskRepeat: "no-repeat",
+                maskRepeat: "no-repeat",
+                WebkitMaskSize: "contain",
+                maskSize: "contain",
+              }}
+            />
             <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
               Scrolls
             </div>
-
-          <div className="ml-auto flex items-center gap-2">
-            <button
-              onClick={() => setActiveId(SAVED_CHANNEL_ID)}
-              className={clsx(
-                "px-3 py-1.5 rounded-md text-sm border transition-colors",
-                isSavedChannel
-                  ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
-                  : "bg-white/5 border-white/10 hover:bg-white/10"
-              )}
-            >
-              Saved
-            </button>
+            <div className="ml-auto flex items-center gap-2">
               <button
                 onClick={() => setAdding(true)}
                 className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
               >
-              <span className="inline-flex items-center gap-1">
-                <Plus className="h-4 w-4" /> Channel
-              </span>
-            </button>
+                <span className="inline-flex items-center gap-1">
+                  <Plus className="h-4 w-4" /> Channel
+                </span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -341,14 +472,26 @@ export default function ScrollApp() {
                     ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
+                onTouchStart={() => startLongPress("channel", ch.id, ch.name)}
+                onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
+                onTouchMove={() => cancelLongPress()}
+                onTouchCancel={() => cancelLongPress()}
               >
                 <button
-                  onClick={() => setActiveId(ch.id)}
+                  onClick={() => {
+                    if (longPressTriggered.current) return;
+                    setActiveId(ch.id);
+                  }}
                   title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"} | Categories: ${ch.categories.join(", ") || "—"}`}
                   className="text-sm whitespace-nowrap"
                 >
                   {ch.name}
                 </button>
+                {unviewedCounts[ch.id] > 0 && (
+                  <span className="ml-1 px-1.5 min-w-[1.25rem] h-5 inline-flex items-center justify-center text-xs rounded-full bg-red-600 text-white">
+                    {unviewedCounts[ch.id]}
+                  </span>
+                )}
                 <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
                   <button
                     onClick={() => removeChannel(ch.id)}
@@ -361,20 +504,116 @@ export default function ScrollApp() {
                 </div>
               </div>
             ))}
-            <button
-              onClick={() => setActiveId(SAVED_CHANNEL_ID)}
-              className={clsx(
-                "pl-2 pr-2 py-1 rounded-full border text-sm transition-colors",
-                isSavedChannel
-                  ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
-                  : "bg-white/5 border-white/10 hover:bg-white/10"
-              )}
-            >
-              Saved
-            </button>
+            {savedLists.length > 0 && (
+              <div className="w-px bg-white/10" aria-hidden="true" />
+            )}
+            {savedLists.map((list) => (
+              <div
+                key={list.id}
+                className={clsx(
+                  "group flex items-center pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
+                  activeId === `list:${list.id}`
+                    ? "bg-gradient-to-r from-emerald-600/40 to-teal-600/40 border-emerald-500/40"
+                    : "bg-emerald-500/10 border-emerald-400/20 hover:bg-emerald-500/20"
+                )}
+                onTouchStart={() => startLongPress("list", list.id, list.name)}
+                onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
+                onTouchMove={() => cancelLongPress()}
+                onTouchCancel={() => cancelLongPress()}
+              >
+                <button
+                  onClick={() => {
+                    if (longPressTriggered.current) return;
+                    setActiveId(`list:${list.id}`);
+                  }}
+                  className="flex items-center gap-1"
+                >
+                  <Bookmark className="h-3.5 w-3.5" />
+                  {list.name}
+                </button>
+                <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
+                  <button
+                    onClick={() => removeList(list.id)}
+                    className="p-1 rounded-full hover:bg-white/10"
+                    title="Delete"
+                    aria-label={`Delete ${list.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+
+      {saveTarget && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
+          onClick={() => {
+            setSaveTarget(null);
+            setNewListName("");
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-800 backdrop-blur-xl shadow-lg shadow-fuchsia-500/20 text-white p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold mb-3 bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
+              Save to List
+            </div>
+            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+              {savedLists.map((list) => {
+                const checked = list.papers.some(
+                  (p) =>
+                    p.arxivId === saveTarget.arxivId ||
+                    p.arxivId.replace(/v\\d+$/, "") ===
+                      saveTarget.arxivId.replace(/v\\d+$/, "")
+                );
+                return (
+                  <label
+                    key={list.id}
+                    className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-white/10"
+                  >
+                    <input
+                      type="checkbox"
+                      className="accent-fuchsia-600"
+                      checked={checked}
+                      onChange={() => togglePaperInList(list.id)}
+                    />
+                    {list.name}
+                  </label>
+                );
+              })}
+              <div className="flex gap-2 pt-2">
+                <input
+                  value={newListName}
+                  onChange={(e) => setNewListName(e.target.value)}
+                  placeholder="New list name"
+                  className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                />
+                <button
+                  disabled={!newListName.trim()}
+                  onClick={createList}
+                  className="px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-sm disabled:opacity-50"
+                >
+                  Create
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 text-right">
+              <button
+                onClick={() => {
+                  setSaveTarget(null);
+                  setNewListName("");
+                }}
+                className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-sm"
+              >
+                Done
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Create Channel modal */}
       {adding && (
@@ -511,13 +750,8 @@ export default function ScrollApp() {
                   key={e.id}
                   entry={e}
                   index={idx}
-                  saved={
-                    savedIds.includes(e.arxivId) ||
-                    savedIds.includes(e.arxivId.replace(/v\d+$/, ""))
-                  }
-                  onToggleSave={() =>
-                    toggleSave(e.arxivId.replace(/v\d+$/, ""))
-                  }
+                  saved={isSaved(e.arxivId)}
+                  onToggleSave={() => openSaveMenu(e)}
                   altCounts={altCache[e.arxivId]?.counts}
                   altStatus={altCache[e.arxivId]?.status}
                   status={statuses[e.arxivId] || "unviewed"}
@@ -528,6 +762,15 @@ export default function ScrollApp() {
           </div>
         )}
       </div>
+
+      {firstUnreadIndex >= 0 && firstUnreadIndex !== pageIndex && (
+        <button
+          className="fixed bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-fuchsia-600 hover:bg-fuchsia-700 text-sm shadow-lg"
+          onClick={() => scrollToIndex(firstUnreadIndex)}
+        >
+          Jump to latest unread
+        </button>
+      )}
 
       {/* Footer: rate limit + page indicator */}
       <div className="shrink-0 px-3 py-2 text-xs text-zinc-400 flex items-center gap-3 border-t border-white/5 bg-black/40 backdrop-blur-xl">
