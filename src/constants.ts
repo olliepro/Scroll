@@ -15,8 +15,9 @@ export const CATEGORY_LABELS: Record<string, string> = {
 };
 
 export const LS_CHANNELS = "arxiv-reels:channels";
-export const LS_SAVED = "arxiv-reels:saved";
+export const LS_LISTS = "arxiv-reels:lists";
 export const LS_LAST_CHANNEL = "arxiv-reels:last-channel";
+export const LS_STATUSES = "arxiv-reels:statuses";
 
 export const defaultChannels: Channel[] = [
   {

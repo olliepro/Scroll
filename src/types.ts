@@ -32,3 +32,9 @@ export interface RateLimitInfo {
   dailyLimit?: number;
   dailyRemaining?: number;
 }
+
+export interface SavedList {
+  id: string;
+  name: string;
+  papers: ArxivEntry[];
+}
