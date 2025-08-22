@@ -25,7 +25,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     upstream.headers.forEach((value, key) => {
       const lower = key.toLowerCase();
-      if (lower === "content-length" || lower === "content-encoding") return;
+      if (
+        lower === "content-length" ||
+        lower === "content-encoding" ||
+        lower === "transfer-encoding"
+      ) {
+        return;
+      }
       res.setHeader(key, value);
     });
     res.setHeader("Access-Control-Allow-Origin", "*");
