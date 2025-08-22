@@ -16,12 +16,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     upstream.headers.forEach((value, key) => {
+      if (key.toLowerCase() === "content-length" || key.toLowerCase() === "content-encoding") return;
       res.setHeader(key, value);
     });
     res.setHeader("Access-Control-Allow-Origin", "*");
 
-    const buffer = Buffer.from(await upstream.arrayBuffer());
-    res.status(upstream.status).send(buffer);
+    const body = await upstream.text();
+    res.status(upstream.status).send(body);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     res.status(500).send(msg ?? "Upstream fetch failed");
