@@ -84,6 +84,8 @@ export default function ScrollApp() {
     statusesRef.current = statuses;
   }, [statuses]);
 
+  const [unviewedCounts, setUnviewedCounts] = useState<Record<string, number>>({});
+
   const [saveTarget, setSaveTarget] = useState<ArxivEntry | null>(null);
   const [newListName, setNewListName] = useState("");
 
@@ -129,6 +131,11 @@ export default function ScrollApp() {
         Object.values(viewTimers.current).forEach(clearTimeout);
         viewTimers.current = {};
         setEntries(res);
+        const count = res.filter((e) => {
+          const s = statusesRef.current[e.arxivId];
+          return s !== "viewed" && s !== "read";
+        }).length;
+        setUnviewedCounts((p) => ({ ...p, [activeChannel.id]: count }));
         const stored = lastPositions.current[activeChannel.id] || 0;
         setPageIndex(stored);
         setTimeout(() => {
@@ -148,6 +155,14 @@ export default function ScrollApp() {
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id, activeList?.id]);
+
+  useEffect(() => {
+    if (!activeChannel || !entries) return;
+    const count = entries.filter(
+      (e) => statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
+    ).length;
+    setUnviewedCounts((p) => ({ ...p, [activeChannel.id]: count }));
+  }, [statuses, entries, activeChannel]);
 
   // Fetch Altmetrics for the fully visible card, with rate-limit respect
   useEffect(() => {
@@ -364,6 +379,11 @@ export default function ScrollApp() {
     if (activeId === id) setActiveId(channels[0]?.id || "");
   }
 
+  function removeList(id: string) {
+    setSavedLists((prev) => prev.filter((l) => l.id !== id));
+    if (activeId === `list:${id}`) setActiveId(channels[0]?.id || "");
+  }
+
   const visibleEntries = useMemo(() => entries || [], [entries]);
 
     return (
@@ -373,7 +393,7 @@ export default function ScrollApp() {
         <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
           <div className="px-4 py-3 flex items-center gap-2">
             <div
-              className="h-5 w-5 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400 animate-pulse"
+              className="h-8 w-8 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400 animate-pulse"
               style={{
                 WebkitMaskImage: `url(${scrollIcon})`,
                 maskImage: `url(${scrollIcon})`,
@@ -386,6 +406,11 @@ export default function ScrollApp() {
             <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
               Scrolls
             </div>
+            {activeList && (
+              <div className="ml-2 px-2 py-0.5 rounded-full text-xs font-medium border border-emerald-500/40 bg-gradient-to-r from-emerald-600/40 to-teal-600/40 text-emerald-100">
+                List: {activeList.name}
+              </div>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <button
                 onClick={() => setAdding(true)}
@@ -415,9 +440,14 @@ export default function ScrollApp() {
                 <button
                   onClick={() => setActiveId(ch.id)}
                   title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"} | Categories: ${ch.categories.join(", ") || "—"}`}
-                  className="text-sm whitespace-nowrap"
+                  className="relative flex items-center gap-1 text-sm whitespace-nowrap"
                 >
                   {ch.name}
+                  {unviewedCounts[ch.id] > 0 && (
+                    <span className="ml-1 px-1.5 h-4 min-w-[1rem] rounded-full bg-red-600 text-white text-xs flex items-center justify-center">
+                      {unviewedCounts[ch.id]}
+                    </span>
+                  )}
                 </button>
                 <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
                   <button
@@ -435,18 +465,32 @@ export default function ScrollApp() {
               <div className="w-px bg-white/10" aria-hidden="true" />
             )}
             {savedLists.map((list) => (
-              <button
+              <div
                 key={list.id}
-                onClick={() => setActiveId(`list:${list.id}`)}
                 className={clsx(
-                  "pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
+                  "group flex items-center pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
                   activeId === `list:${list.id}`
-                    ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
+                    ? "bg-gradient-to-r from-emerald-600/40 to-teal-600/40 border-emerald-500/40"
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
               >
-                {list.name}
-              </button>
+                <button
+                  onClick={() => setActiveId(`list:${list.id}`)}
+                  className="whitespace-nowrap"
+                >
+                  {list.name}
+                </button>
+                <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
+                  <button
+                    onClick={() => removeList(list.id)}
+                    className="p-1 rounded-full hover:bg-white/10"
+                    title="Delete"
+                    aria-label={`Delete ${list.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -460,10 +504,12 @@ export default function ScrollApp() {
           }}
         >
           <div
-            className="w-full max-w-xs rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 text-white p-4"
+            className="w-full max-w-xs rounded-3xl border border-white/10 bg-gradient-to-br from-fuchsia-950/90 via-indigo-950/90 to-zinc-950/90 text-white p-6 shadow-2xl shadow-fuchsia-900/20"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-lg font-semibold mb-2">Save to List</div>
+            <div className="text-lg font-semibold mb-3 bg-gradient-to-r from-fuchsia-400 to-indigo-400 bg-clip-text text-transparent">
+              Save to List
+            </div>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {savedLists.map((list) => {
                 const checked = list.papers.some(
@@ -473,7 +519,10 @@ export default function ScrollApp() {
                       saveTarget.arxivId.replace(/v\\d+$/, "")
                 );
                 return (
-                  <label key={list.id} className="flex items-center gap-2 text-sm">
+                  <label
+                    key={list.id}
+                    className="flex items-center gap-2 text-sm px-2 py-1 rounded-md hover:bg-white/5"
+                  >
                     <input
                       type="checkbox"
                       className="accent-fuchsia-600"
@@ -489,7 +538,7 @@ export default function ScrollApp() {
                   value={newListName}
                   onChange={(e) => setNewListName(e.target.value)}
                   placeholder="New list name"
-                  className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                  className="flex-1 bg-white/5 border border-white/10 text-white rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
                 />
                 <button
                   disabled={!newListName.trim()}
