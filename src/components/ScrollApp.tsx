@@ -1,18 +1,29 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
-import { Heart, Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Loader2, Plus, Sparkles, Trash2 } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { CATEGORY_LABELS, LS_CHANNELS, LS_LAST_CHANNEL, LS_SAVED, defaultChannels } from "../constants";
-import type { AltmetricCounts, Channel, ArxivEntry, RateLimitInfo } from "../types";
+import {
+  CATEGORY_LABELS,
+  LS_CHANNELS,
+  LS_LAST_CHANNEL,
+  LS_SAVED,
+  defaultChannels,
+} from "../constants";
+import type {
+  AltmetricCounts,
+  Channel,
+  ArxivEntry,
+  RateLimitInfo,
+} from "../types";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
 import "../styles/no-scrollbar";
 
 const SAVED_CHANNEL_ID = "__saved__";
 
-export default function ArxivReelsApp() {
+export default function ScrollApp() {
   const [channels, setChannels] = useLocalStorage<Channel[]>(
     LS_CHANNELS,
     defaultChannels
@@ -28,7 +39,10 @@ export default function ArxivReelsApp() {
   const [error, setError] = useState<string | null>(null);
 
   const [altCache, setAltCache] = useState<
-    Record<string, AltmetricCounts | null | undefined>
+    Record<
+      string,
+      { counts: AltmetricCounts | null; status: number } | undefined
+    >
   >({});
   const [rateInfo, setRateInfo] = useState<RateLimitInfo | null>(null);
   const [rateLimitHoldUntil, setRateLimitHoldUntil] = useState<number | null>(
@@ -55,6 +69,15 @@ export default function ArxivReelsApp() {
   const [pageIndex, setPageIndex] = useState(0);
   const scrollLock = useRef(false);
   const touchStartY = useRef<number | null>(null);
+  const lastPositions = useRef<Record<string, number>>({});
+  const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [statuses, setStatuses] = useState<
+    Record<string, "unviewed" | "viewed" | "read">
+  >({});
+  const statusesRef = useRef(statuses);
+  useEffect(() => {
+    statusesRef.current = statuses;
+  }, [statuses]);
 
   const activeChannel: Channel | null = useMemo(
     () => channels.find((c) => c.id === activeId) || null,
@@ -68,18 +91,27 @@ export default function ArxivReelsApp() {
       setError(null);
       try {
         const res = await fetchArxiv(activeChannel);
+        Object.values(viewTimers.current).forEach(clearTimeout);
+        viewTimers.current = {};
         setEntries(res);
-        setPageIndex(0);
-        setTimeout(
-          () => containerRef.current?.scrollTo({ top: 0, behavior: "auto" }),
-          0
+        const stored = lastPositions.current[activeChannel.id] || 0;
+        setPageIndex(stored);
+        setTimeout(() => {
+          const target = containerRef.current?.querySelector(
+            `[data-index="${stored}"]`
+          ) as HTMLElement | null;
+          if (target) target.scrollIntoView({ behavior: "auto", block: "start" });
+          else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
+        }, 0);
+      } catch (e: unknown) {
+        setError(
+          e instanceof Error ? e.message : "Failed to load papers from arXiv"
         );
-      } catch (e: any) {
-        setError(e?.message || "Failed to load papers from arXiv");
       } finally {
         setLoading(false);
       }
     })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id]);
 
   // Fetch Altmetrics for the fully visible card, with rate-limit respect
@@ -89,11 +121,23 @@ export default function ArxivReelsApp() {
     const observer = new IntersectionObserver(
       (items) => {
         items.forEach(async (it) => {
+          const idx = Number((it.target as HTMLElement).dataset.index);
+          const arxivId = entries[idx]?.arxivId;
           if (it.isIntersecting && it.intersectionRatio >= 0.95) {
-            const idx = Number((it.target as HTMLElement).dataset.index);
             setPageIndex(idx);
+            if (arxivId) {
+              clearTimeout(viewTimers.current[arxivId]);
+              const status = statusesRef.current[arxivId];
+              if (status !== "read" && status !== "viewed") {
+                viewTimers.current[arxivId] = setTimeout(() => {
+                  setStatuses((p) => ({
+                    ...p,
+                    [arxivId]: p[arxivId] === "read" ? "read" : "viewed",
+                  }));
+                }, 5000);
+              }
+            }
 
-            const arxivId = entries[idx]?.arxivId;
             const now = Date.now();
             if (rateLimitHoldUntil && now < rateLimitHoldUntil) return;
 
@@ -101,15 +145,23 @@ export default function ArxivReelsApp() {
               try {
                 const { counts, rate, status, retryAfterSec } =
                   await fetchAltmetric(arxivId);
-                setAltCache((p) => ({ ...p, [arxivId]: counts }));
+                setAltCache((p) => ({
+                  ...p,
+                  [arxivId]: { counts, status },
+                }));
                 setRateInfo(rate);
                 if (status === 429 && retryAfterSec) {
                   setRateLimitHoldUntil(now + retryAfterSec * 1000);
                 }
               } catch {
-                setAltCache((p) => ({ ...p, [arxivId]: null }));
+                setAltCache((p) => ({
+                  ...p,
+                  [arxivId]: { counts: null, status: 0 },
+                }));
               }
             }
+          } else if (arxivId) {
+            clearTimeout(viewTimers.current[arxivId]);
           }
         });
       },
@@ -121,12 +173,16 @@ export default function ArxivReelsApp() {
     return () => observer.disconnect();
   }, [entries, altCache, rateLimitHoldUntil]);
 
+  useEffect(() => {
+    lastPositions.current[activeId] = pageIndex;
+  }, [pageIndex, activeId]);
+
   // Controlled page-by-page scrolling (no multi-skip, snappy)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    const SCROLL_LOCK_MS = 550;
+    const SCROLL_LOCK_MS = 275;
     function scrollToIndex(idx: number) {
       if (!el) return;
       const clamped = Math.max(0, Math.min(idx, (entries?.length || 1) - 1));
@@ -168,27 +224,47 @@ export default function ArxivReelsApp() {
       else scrollToIndex(pageIndex - 1);
     }
 
+    function onKeyDown(e: KeyboardEvent) {
+      if (scrollLock.current) return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        scrollToIndex(pageIndex + 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        scrollToIndex(pageIndex - 1);
+      }
+    }
+
     el.style.overflow = "hidden";
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd, { passive: false });
+    window.addEventListener("keydown", onKeyDown as EventListener);
 
-    return () => {
-      el.style.overflow = "auto";
-      el.removeEventListener("wheel", onWheel as any);
-      el.removeEventListener("touchstart", onTouchStart as any);
-      el.removeEventListener("touchmove", onTouchMove as any);
-      el.removeEventListener("touchend", onTouchEnd as any);
-    };
+      return () => {
+        el.style.overflow = "auto";
+        el.removeEventListener("wheel", onWheel as EventListener);
+        el.removeEventListener("touchstart", onTouchStart as EventListener);
+        el.removeEventListener("touchmove", onTouchMove as EventListener);
+        el.removeEventListener("touchend", onTouchEnd as EventListener);
+        window.removeEventListener("keydown", onKeyDown as EventListener);
+      };
   }, [pageIndex, entries?.length]);
 
   function toggleSave(arxivId: string) {
+    markRead(arxivId);
     setSavedIds((prev) =>
       prev.includes(arxivId)
         ? prev.filter((x) => x !== arxivId)
         : [...prev, arxivId]
     );
+  }
+
+  function markRead(id: string) {
+    setStatuses((p) => ({ ...p, [id]: "read" }));
   }
 
   function addChannel(ch: Omit<Channel, "id">) {
@@ -219,30 +295,33 @@ export default function ArxivReelsApp() {
     });
   }, [entries, isSavedChannel, savedIds]);
 
-  return (
-    <div className="h-screen w-full bg-[#0b0b10] text-white flex flex-col overflow-hidden">
-      {/* Top bar */}
-      <div className="shrink-0 border-b border-white/10 backdrop-blur-xl bg-black/40">
-        <div className="px-3 py-2 flex items-center gap-2">
-          <Sparkles className="h-5 w-5 text-purple-300" />
-          <div className="font-semibold tracking-wide">ArXiv Reels</div>
+    return (
+      <div className="h-screen w-full text-zinc-100 flex flex-col overflow-hidden relative">
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(139,92,246,0.2)_0%,_transparent_60%),radial-gradient(ellipse_at_bottom_right,_rgba(56,189,248,0.15)_0%,_transparent_60%)]" />
+        {/* Top bar */}
+        <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
+          <div className="px-4 py-3 flex items-center gap-2">
+            <Sparkles className="h-5 w-5 text-fuchsia-400 animate-pulse" />
+            <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
+              Scrolls
+            </div>
 
           <div className="ml-auto flex items-center gap-2">
             <button
               onClick={() => setActiveId(SAVED_CHANNEL_ID)}
               className={clsx(
-                "px-3 py-1.5 rounded-md text-sm border",
+                "px-3 py-1.5 rounded-md text-sm border transition-colors",
                 isSavedChannel
-                  ? "bg-white/10 border-white/20"
+                  ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                   : "bg-white/5 border-white/10 hover:bg-white/10"
               )}
             >
               Saved
             </button>
-            <button
-              onClick={() => setAdding(true)}
-              className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90"
-            >
+              <button
+                onClick={() => setAdding(true)}
+                className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
+              >
               <span className="inline-flex items-center gap-1">
                 <Plus className="h-4 w-4" /> Channel
               </span>
@@ -257,9 +336,9 @@ export default function ArxivReelsApp() {
               <div
                 key={ch.id}
                 className={clsx(
-                  "group flex items-center pl-2 pr-2 py-1 rounded-full border",
+                  "group flex items-center pl-2 pr-2 py-1 rounded-full border transition-colors",
                   activeId === ch.id
-                    ? "bg-white/10 border-white/20"
+                    ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
               >
@@ -285,9 +364,9 @@ export default function ArxivReelsApp() {
             <button
               onClick={() => setActiveId(SAVED_CHANNEL_ID)}
               className={clsx(
-                "pl-2 pr-2 py-1 rounded-full border text-sm",
+                "pl-2 pr-2 py-1 rounded-full border text-sm transition-colors",
                 isSavedChannel
-                  ? "bg-white/10 border-white/20"
+                  ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                   : "bg-white/5 border-white/10 hover:bg-white/10"
               )}
             >
@@ -300,11 +379,11 @@ export default function ArxivReelsApp() {
       {/* Create Channel modal */}
       {adding && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
           onClick={() => setAdding(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-zinc-900 text-white p-4"
+            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-lg font-semibold">Create a Channel</div>
@@ -322,7 +401,7 @@ export default function ArxivReelsApp() {
                     setNewChannel((p) => ({ ...p, name: e.target.value }))
                   }
                   placeholder="My Vision + LLMs"
-                  className="mt-1 w-full bg-black/50 border border-white/10 text-white rounded-md px-3 py-2"
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
                 />
               </div>
 
@@ -385,7 +464,7 @@ export default function ArxivReelsApp() {
                   className={clsx(
                     "px-3 py-1.5 rounded-md",
                     newChannel.name.trim()
-                      ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600"
+                      ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600 shadow-lg shadow-fuchsia-500/20"
                       : "bg-white/10 text-white/50"
                   )}
                   onClick={() =>
@@ -439,7 +518,10 @@ export default function ArxivReelsApp() {
                   onToggleSave={() =>
                     toggleSave(e.arxivId.replace(/v\d+$/, ""))
                   }
-                  altCounts={altCache[e.arxivId]}
+                  altCounts={altCache[e.arxivId]?.counts}
+                  altStatus={altCache[e.arxivId]?.status}
+                  status={statuses[e.arxivId] || "unviewed"}
+                  onMarkRead={() => markRead(e.arxivId)}
                 />
               ))}
             </div>
