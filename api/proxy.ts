@@ -2,6 +2,14 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  if (req.method === "OPTIONS") {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "accept");
+    res.status(204).end();
+    return;
+  }
+
   const { url } = req.query;
   if (!url || Array.isArray(url)) {
     res.status(400).send("Missing url param");
@@ -16,12 +24,16 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
 
     upstream.headers.forEach((value, key) => {
-      if (key.toLowerCase() === "content-length" || key.toLowerCase() === "content-encoding") return;
+      const lower = key.toLowerCase();
+      if (lower === "content-length" || lower === "content-encoding") return;
       res.setHeader(key, value);
     });
     res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "accept");
 
     const body = await upstream.text();
+    res.setHeader("Content-Length", String(Buffer.byteLength(body, "utf8")));
     res.status(upstream.status).send(body);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
