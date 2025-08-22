@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Bookmark, X } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
@@ -83,6 +83,8 @@ export default function ScrollApp() {
   useEffect(() => {
     statusesRef.current = statuses;
   }, [statuses]);
+
+  const [unviewedCounts, setUnviewedCounts] = useState<Record<string, number>>({});
 
   const [saveTarget, setSaveTarget] = useState<ArxivEntry | null>(null);
   const [newListName, setNewListName] = useState("");
@@ -211,6 +213,14 @@ export default function ScrollApp() {
   useEffect(() => {
     lastPositions.current[activeId] = pageIndex;
   }, [pageIndex, activeId]);
+
+  useEffect(() => {
+    if (!activeChannel || !entries) return;
+    const count = entries.filter(
+      (e) => statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
+    ).length;
+    setUnviewedCounts((p) => ({ ...p, [activeChannel.id]: count }));
+  }, [entries, statuses, activeChannel]);
 
   // Controlled page-by-page scrolling (no multi-skip, snappy)
   useEffect(() => {
@@ -364,6 +374,11 @@ export default function ScrollApp() {
     if (activeId === id) setActiveId(channels[0]?.id || "");
   }
 
+  function removeList(id: string) {
+    setSavedLists((prev) => prev.filter((l) => l.id !== id));
+    if (activeId === `list:${id}`) setActiveId(channels[0]?.id || "");
+  }
+
   const visibleEntries = useMemo(() => entries || [], [entries]);
 
     return (
@@ -373,7 +388,7 @@ export default function ScrollApp() {
         <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
           <div className="px-4 py-3 flex items-center gap-2">
             <div
-              className="h-5 w-5 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400 animate-pulse"
+              className="h-7 w-7 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400 animate-pulse"
               style={{
                 WebkitMaskImage: `url(${scrollIcon})`,
                 maskImage: `url(${scrollIcon})`,
@@ -419,6 +434,11 @@ export default function ScrollApp() {
                 >
                   {ch.name}
                 </button>
+                {unviewedCounts[ch.id] > 0 && (
+                  <span className="ml-1 px-1.5 py-0.5 rounded-full bg-red-600 text-white text-xs leading-none">
+                    {unviewedCounts[ch.id]}
+                  </span>
+                )}
                 <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
                   <button
                     onClick={() => removeChannel(ch.id)}
@@ -435,36 +455,63 @@ export default function ScrollApp() {
               <div className="w-px bg-white/10" aria-hidden="true" />
             )}
             {savedLists.map((list) => (
-              <button
+              <div
                 key={list.id}
-                onClick={() => setActiveId(`list:${list.id}`)}
                 className={clsx(
-                  "pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
+                  "group flex items-center pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
                   activeId === `list:${list.id}`
                     ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
               >
-                {list.name}
-              </button>
+                <button
+                  onClick={() => setActiveId(`list:${list.id}`)}
+                  className="flex items-center gap-1 whitespace-nowrap"
+                >
+                  <Bookmark className="h-3.5 w-3.5" />
+                  {list.name}
+                </button>
+                <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
+                  <button
+                    onClick={() => removeList(list.id)}
+                    className="p-1 rounded-full hover:bg-white/10"
+                    title="Delete"
+                    aria-label={`Delete ${list.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </div>
 
       {saveTarget && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => {
             setSaveTarget(null);
             setNewListName("");
           }}
         >
           <div
-            className="w-full max-w-xs rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 text-white p-4"
+            className="w-full max-w-md rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 text-white p-6 shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-lg font-semibold mb-2">Save to List</div>
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
+            <div className="flex items-center justify-between mb-4">
+              <div className="text-lg font-semibold">Save to List</div>
+              <button
+                onClick={() => {
+                  setSaveTarget(null);
+                  setNewListName("");
+                }}
+                className="p-1 rounded-md hover:bg-white/10"
+                aria-label="Close"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="space-y-2 mb-4 max-h-64 overflow-y-auto pr-2">
               {savedLists.map((list) => {
                 const checked = list.papers.some(
                   (p) =>
@@ -484,23 +531,23 @@ export default function ScrollApp() {
                   </label>
                 );
               })}
-              <div className="flex gap-2 pt-2">
-                <input
-                  value={newListName}
-                  onChange={(e) => setNewListName(e.target.value)}
-                  placeholder="New list name"
-                  className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
-                />
-                <button
-                  disabled={!newListName.trim()}
-                  onClick={createList}
-                  className="px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-sm disabled:opacity-50"
-                >
-                  Create
-                </button>
-              </div>
             </div>
-            <div className="mt-4 text-right">
+            <div className="flex gap-2 mb-4">
+              <input
+                value={newListName}
+                onChange={(e) => setNewListName(e.target.value)}
+                placeholder="New list name"
+                className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+              />
+              <button
+                disabled={!newListName.trim()}
+                onClick={createList}
+                className="px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-sm disabled:opacity-50"
+              >
+                Create
+              </button>
+            </div>
+            <div className="text-right">
               <button
                 onClick={() => {
                   setSaveTarget(null);
