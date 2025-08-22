@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Loader2, Plus, Trash2, Bookmark } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
@@ -84,6 +84,10 @@ export default function ScrollApp() {
     statusesRef.current = statuses;
   }, [statuses]);
 
+  const [unviewedCounts, setUnviewedCounts] = useState<Record<string, number>>(
+    {}
+  );
+
   const [saveTarget, setSaveTarget] = useState<ArxivEntry | null>(null);
   const [newListName, setNewListName] = useState("");
 
@@ -95,6 +99,15 @@ export default function ScrollApp() {
     () => savedLists.find((l) => `list:${l.id}` === activeId) || null,
     [savedLists, activeId]
   );
+
+  useEffect(() => {
+    if (!activeChannel || !entries) return;
+    const count = entries.filter(
+      (e) =>
+        statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
+    ).length;
+    setUnviewedCounts((p) => ({ ...p, [activeChannel.id]: count }));
+  }, [activeChannel, entries, statuses]);
 
   useEffect(() => {
     if (!activeChannel && !activeList && channels[0]) {
@@ -364,6 +377,11 @@ export default function ScrollApp() {
     if (activeId === id) setActiveId(channels[0]?.id || "");
   }
 
+  function removeList(id: string) {
+    setSavedLists((prev) => prev.filter((l) => l.id !== id));
+    if (activeId === `list:${id}`) setActiveId(channels[0]?.id || "");
+  }
+
   const visibleEntries = useMemo(() => entries || [], [entries]);
 
     return (
@@ -373,7 +391,7 @@ export default function ScrollApp() {
         <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
           <div className="px-4 py-3 flex items-center gap-2">
             <div
-              className="h-5 w-5 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400 animate-pulse"
+              className="h-7 w-7 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400 animate-pulse"
               style={{
                 WebkitMaskImage: `url(${scrollIcon})`,
                 maskImage: `url(${scrollIcon})`,
@@ -419,6 +437,11 @@ export default function ScrollApp() {
                 >
                   {ch.name}
                 </button>
+                {unviewedCounts[ch.id] > 0 && (
+                  <span className="ml-1 px-1.5 min-w-[1.25rem] h-5 inline-flex items-center justify-center text-xs rounded-full bg-red-600 text-white">
+                    {unviewedCounts[ch.id]}
+                  </span>
+                )}
                 <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
                   <button
                     onClick={() => removeChannel(ch.id)}
@@ -435,18 +458,33 @@ export default function ScrollApp() {
               <div className="w-px bg-white/10" aria-hidden="true" />
             )}
             {savedLists.map((list) => (
-              <button
+              <div
                 key={list.id}
-                onClick={() => setActiveId(`list:${list.id}`)}
                 className={clsx(
-                  "pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
+                  "group flex items-center pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
                   activeId === `list:${list.id}`
-                    ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
-                    : "bg-white/5 border-white/10 hover:bg-white/10"
+                    ? "bg-gradient-to-r from-emerald-600/40 to-teal-600/40 border-emerald-500/40"
+                    : "bg-emerald-500/10 border-emerald-400/20 hover:bg-emerald-500/20"
                 )}
               >
-                {list.name}
-              </button>
+                <button
+                  onClick={() => setActiveId(`list:${list.id}`)}
+                  className="flex items-center gap-1"
+                >
+                  <Bookmark className="h-3.5 w-3.5" />
+                  {list.name}
+                </button>
+                <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
+                  <button
+                    onClick={() => removeList(list.id)}
+                    className="p-1 rounded-full hover:bg-white/10"
+                    title="Delete"
+                    aria-label={`Delete ${list.name}`}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </button>
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -460,10 +498,12 @@ export default function ScrollApp() {
           }}
         >
           <div
-            className="w-full max-w-xs rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 text-white p-4"
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-800 backdrop-blur-xl shadow-lg shadow-fuchsia-500/20 text-white p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-lg font-semibold mb-2">Save to List</div>
+            <div className="text-lg font-semibold mb-3 bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
+              Save to List
+            </div>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
               {savedLists.map((list) => {
                 const checked = list.papers.some(
@@ -473,7 +513,10 @@ export default function ScrollApp() {
                       saveTarget.arxivId.replace(/v\\d+$/, "")
                 );
                 return (
-                  <label key={list.id} className="flex items-center gap-2 text-sm">
+                  <label
+                    key={list.id}
+                    className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-white/10"
+                  >
                     <input
                       type="checkbox"
                       className="accent-fuchsia-600"
