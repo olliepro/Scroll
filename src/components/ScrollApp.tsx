@@ -94,7 +94,7 @@ export default function ScrollApp() {
       setError(null);
       debug(`Fetching arXiv for ${activeChannel.name}`);
       try {
-        const res = await fetchArxiv(activeChannel);
+        const res = await fetchArxiv(activeChannel, debug);
         Object.values(viewTimers.current).forEach(clearTimeout);
         viewTimers.current = {};
         setEntries(res);
@@ -150,7 +150,7 @@ export default function ScrollApp() {
             if (arxivId && altCache[arxivId] === undefined) {
               try {
                 const { counts, rate, status, retryAfterSec } =
-                  await fetchAltmetric(arxivId);
+                  await fetchAltmetric(arxivId, debug);
                 setAltCache((p) => ({
                   ...p,
                   [arxivId]: { counts, status },

@@ -28,17 +28,46 @@ function buildArxivQuery(ch: Channel) {
   return `https://export.arxiv.org/api/query?${params.toString()}`;
 }
 
-export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
+export async function fetchArxiv(
+  channel: Channel,
+  debug?: (msg: string) => void
+): Promise<ArxivEntry[]> {
   const url = buildArxivQuery(channel);
-  const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
-  const text = await res.text();
+  debug?.(`Proxying to ${url}`);
+  let res: Response;
+  try {
+    res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    debug?.(`Network error: ${msg}`);
+    throw new Error(`Network error while requesting arXiv: ${msg}`);
+  }
+
+  debug?.(`Status ${res.status}`);
+  let text: string;
+  try {
+    text = await res.text();
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    debug?.(`Read error: ${msg}`);
+    throw new Error(`Failed to read arXiv response: ${msg}`);
+  }
+  debug?.(`Body length ${text.length}`);
   if (!res.ok) {
-    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200) || "<empty>"}`);
   }
 
   const parser = new DOMParser();
-  const xml = parser.parseFromString(text, "application/xml");
+  let xml: Document;
+  try {
+    xml = parser.parseFromString(text, "application/xml");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    debug?.(`Parse error: ${msg}`);
+    throw new Error(`Failed to parse arXiv XML: ${msg}`);
+  }
   const entries = Array.from(xml.getElementsByTagName("entry"));
+  debug?.(`Parsed ${entries.length} entries`);
 
   const out: ArxivEntry[] = entries.map((e) => {
     const id = e.getElementsByTagName("id")[0]?.textContent || "";
