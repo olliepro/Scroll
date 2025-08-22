@@ -2,10 +2,13 @@
 import type { VercelRequest, VercelResponse } from "@vercel/node";
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  const allowedHeaders =
+    req.headers["access-control-request-headers"] ?? "accept";
+
   if (req.method === "OPTIONS") {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "accept");
+    res.setHeader("Access-Control-Allow-Headers", allowedHeaders);
     res.status(204).end();
     return;
   }
@@ -30,7 +33,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Methods", "GET,OPTIONS");
-    res.setHeader("Access-Control-Allow-Headers", "accept");
+    res.setHeader("Access-Control-Allow-Headers", allowedHeaders);
 
     const body = await upstream.text();
     res.setHeader("Content-Length", String(Buffer.byteLength(body, "utf8")));
