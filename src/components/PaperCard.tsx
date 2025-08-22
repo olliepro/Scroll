@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart, X } from "lucide-react";
 import { FaXTwitter } from "react-icons/fa6";
@@ -30,6 +30,23 @@ export function PaperCard({
   const [showFull, setShowFull] = useState(false);
   const statusSymbol =
     status === "read" ? "✔" : status === "viewed" ? "●" : "○";
+  const paraRef = useRef<HTMLParagraphElement | null>(null);
+  const [lineClamp, setLineClamp] = useState(14);
+
+  useEffect(() => {
+    function calcClamp() {
+      const p = paraRef.current;
+      if (!p) return;
+      const parent = p.parentElement;
+      if (!parent) return;
+      const available = parent.clientHeight - p.offsetTop - 100;
+      const lh = parseFloat(getComputedStyle(p).lineHeight || "16");
+      if (lh > 0) setLineClamp(Math.max(3, Math.floor(available / lh)));
+    }
+    calcClamp();
+    window.addEventListener("resize", calcClamp);
+    return () => window.removeEventListener("resize", calcClamp);
+  }, [entry.summary]);
   return (
     <>
       <section
@@ -127,10 +144,11 @@ export function PaperCard({
             </div>
             {/* Abstract */}
             <p
+              ref={paraRef}
               className="mt-3 text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap"
               style={{
                 display: "-webkit-box",
-                WebkitLineClamp: 14,
+                WebkitLineClamp: lineClamp,
                 WebkitBoxOrient: "vertical",
                 overflow: "hidden",
               }}
