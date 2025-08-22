@@ -1,7 +1,7 @@
-import { ArxivReelsApp } from "./index";
+import { ScrollApp } from "./index";
 
 function App() {
-  return <ArxivReelsApp />;
+  return <ScrollApp />;
 }
 
 export default App;

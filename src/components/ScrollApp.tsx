@@ -4,15 +4,26 @@ import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { CATEGORY_LABELS, LS_CHANNELS, LS_LAST_CHANNEL, LS_SAVED, defaultChannels } from "../constants";
-import type { AltmetricCounts, Channel, ArxivEntry, RateLimitInfo } from "../types";
+import {
+  CATEGORY_LABELS,
+  LS_CHANNELS,
+  LS_LAST_CHANNEL,
+  LS_SAVED,
+  defaultChannels,
+} from "../constants";
+import type {
+  AltmetricCounts,
+  Channel,
+  ArxivEntry,
+  RateLimitInfo,
+} from "../types";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
 import "../styles/no-scrollbar";
 
 const SAVED_CHANNEL_ID = "__saved__";
 
-export default function ArxivReelsApp() {
+export default function ScrollApp() {
   const [channels, setChannels] = useLocalStorage<Channel[]>(
     LS_CHANNELS,
     defaultChannels
@@ -28,7 +39,10 @@ export default function ArxivReelsApp() {
   const [error, setError] = useState<string | null>(null);
 
   const [altCache, setAltCache] = useState<
-    Record<string, AltmetricCounts | null | undefined>
+    Record<
+      string,
+      { counts: AltmetricCounts | null; status: number } | undefined
+    >
   >({});
   const [rateInfo, setRateInfo] = useState<RateLimitInfo | null>(null);
   const [rateLimitHoldUntil, setRateLimitHoldUntil] = useState<number | null>(
@@ -55,6 +69,15 @@ export default function ArxivReelsApp() {
   const [pageIndex, setPageIndex] = useState(0);
   const scrollLock = useRef(false);
   const touchStartY = useRef<number | null>(null);
+  const lastPositions = useRef<Record<string, number>>({});
+  const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const [statuses, setStatuses] = useState<
+    Record<string, "unviewed" | "viewed" | "read">
+  >({});
+  const statusesRef = useRef(statuses);
+  useEffect(() => {
+    statusesRef.current = statuses;
+  }, [statuses]);
 
   const activeChannel: Channel | null = useMemo(
     () => channels.find((c) => c.id === activeId) || null,
@@ -68,12 +91,18 @@ export default function ArxivReelsApp() {
       setError(null);
       try {
         const res = await fetchArxiv(activeChannel);
+        Object.values(viewTimers.current).forEach(clearTimeout);
+        viewTimers.current = {};
         setEntries(res);
-        setPageIndex(0);
-        setTimeout(
-          () => containerRef.current?.scrollTo({ top: 0, behavior: "auto" }),
-          0
-        );
+        const stored = lastPositions.current[activeChannel.id] || 0;
+        setPageIndex(stored);
+        setTimeout(() => {
+          const target = containerRef.current?.querySelector(
+            `[data-index="${stored}"]`
+          ) as HTMLElement | null;
+          if (target) target.scrollIntoView({ behavior: "auto", block: "start" });
+          else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
+        }, 0);
       } catch (e: unknown) {
         setError(
           e instanceof Error ? e.message : "Failed to load papers from arXiv"
@@ -92,11 +121,23 @@ export default function ArxivReelsApp() {
     const observer = new IntersectionObserver(
       (items) => {
         items.forEach(async (it) => {
+          const idx = Number((it.target as HTMLElement).dataset.index);
+          const arxivId = entries[idx]?.arxivId;
           if (it.isIntersecting && it.intersectionRatio >= 0.95) {
-            const idx = Number((it.target as HTMLElement).dataset.index);
             setPageIndex(idx);
+            if (arxivId) {
+              clearTimeout(viewTimers.current[arxivId]);
+              const status = statusesRef.current[arxivId];
+              if (status !== "read" && status !== "viewed") {
+                viewTimers.current[arxivId] = setTimeout(() => {
+                  setStatuses((p) => ({
+                    ...p,
+                    [arxivId]: p[arxivId] === "read" ? "read" : "viewed",
+                  }));
+                }, 5000);
+              }
+            }
 
-            const arxivId = entries[idx]?.arxivId;
             const now = Date.now();
             if (rateLimitHoldUntil && now < rateLimitHoldUntil) return;
 
@@ -104,15 +145,23 @@ export default function ArxivReelsApp() {
               try {
                 const { counts, rate, status, retryAfterSec } =
                   await fetchAltmetric(arxivId);
-                setAltCache((p) => ({ ...p, [arxivId]: counts }));
+                setAltCache((p) => ({
+                  ...p,
+                  [arxivId]: { counts, status },
+                }));
                 setRateInfo(rate);
                 if (status === 429 && retryAfterSec) {
                   setRateLimitHoldUntil(now + retryAfterSec * 1000);
                 }
               } catch {
-                setAltCache((p) => ({ ...p, [arxivId]: null }));
+                setAltCache((p) => ({
+                  ...p,
+                  [arxivId]: { counts: null, status: 0 },
+                }));
               }
             }
+          } else if (arxivId) {
+            clearTimeout(viewTimers.current[arxivId]);
           }
         });
       },
@@ -124,12 +173,16 @@ export default function ArxivReelsApp() {
     return () => observer.disconnect();
   }, [entries, altCache, rateLimitHoldUntil]);
 
+  useEffect(() => {
+    lastPositions.current[activeId] = pageIndex;
+  }, [pageIndex, activeId]);
+
   // Controlled page-by-page scrolling (no multi-skip, snappy)
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
 
-    const SCROLL_LOCK_MS = 550;
+    const SCROLL_LOCK_MS = 275;
     function scrollToIndex(idx: number) {
       if (!el) return;
       const clamped = Math.max(0, Math.min(idx, (entries?.length || 1) - 1));
@@ -171,11 +224,25 @@ export default function ArxivReelsApp() {
       else scrollToIndex(pageIndex - 1);
     }
 
+    function onKeyDown(e: KeyboardEvent) {
+      if (scrollLock.current) return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        scrollToIndex(pageIndex + 1);
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        scrollToIndex(pageIndex - 1);
+      }
+    }
+
     el.style.overflow = "hidden";
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("touchstart", onTouchStart, { passive: false });
     el.addEventListener("touchmove", onTouchMove, { passive: false });
     el.addEventListener("touchend", onTouchEnd, { passive: false });
+    window.addEventListener("keydown", onKeyDown as EventListener);
 
       return () => {
         el.style.overflow = "auto";
@@ -183,15 +250,21 @@ export default function ArxivReelsApp() {
         el.removeEventListener("touchstart", onTouchStart as EventListener);
         el.removeEventListener("touchmove", onTouchMove as EventListener);
         el.removeEventListener("touchend", onTouchEnd as EventListener);
+        window.removeEventListener("keydown", onKeyDown as EventListener);
       };
   }, [pageIndex, entries?.length]);
 
   function toggleSave(arxivId: string) {
+    markRead(arxivId);
     setSavedIds((prev) =>
       prev.includes(arxivId)
         ? prev.filter((x) => x !== arxivId)
         : [...prev, arxivId]
     );
+  }
+
+  function markRead(id: string) {
+    setStatuses((p) => ({ ...p, [id]: "read" }));
   }
 
   function addChannel(ch: Omit<Channel, "id">) {
@@ -230,7 +303,7 @@ export default function ArxivReelsApp() {
           <div className="px-4 py-3 flex items-center gap-2">
             <Sparkles className="h-5 w-5 text-fuchsia-400 animate-pulse" />
             <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
-              ArXiv Reels
+              Scrolls
             </div>
 
           <div className="ml-auto flex items-center gap-2">
@@ -445,7 +518,10 @@ export default function ArxivReelsApp() {
                   onToggleSave={() =>
                     toggleSave(e.arxivId.replace(/v\d+$/, ""))
                   }
-                  altCounts={altCache[e.arxivId]}
+                  altCounts={altCache[e.arxivId]?.counts}
+                  altStatus={altCache[e.arxivId]?.status}
+                  status={statuses[e.arxivId] || "unviewed"}
+                  onMarkRead={() => markRead(e.arxivId)}
                 />
               ))}
             </div>
