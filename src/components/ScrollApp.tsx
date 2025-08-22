@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import { Loader2, Plus, Trash2, Bookmark } from "lucide-react";
 import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
@@ -76,6 +76,8 @@ export default function ScrollApp() {
   const touchStartY = useRef<number | null>(null);
   const lastPositions = useRef<Record<string, number>>({});
   const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const longPressTimeout = useRef<number | null>(null);
+  const longPressTriggered = useRef(false);
   const [statuses, setStatuses] = useLocalStorage<
     Record<string, "unviewed" | "viewed" | "read">
   >(LS_STATUSES, {});
@@ -90,6 +92,57 @@ export default function ScrollApp() {
 
   const [saveTarget, setSaveTarget] = useState<ArxivEntry | null>(null);
   const [newListName, setNewListName] = useState("");
+
+  const isTouchDevice =
+    typeof window !== "undefined" &&
+    ("ontouchstart" in window || navigator.maxTouchPoints > 0);
+
+  const SCROLL_LOCK_MS = 275;
+
+  const scrollToIndex = useCallback(
+    (idx: number) => {
+      const el = containerRef.current;
+      if (!el) return;
+      const clamped = Math.max(0, Math.min(idx, (entries?.length || 1) - 1));
+      const target = el.querySelector(
+        `[data-index="${clamped}"]`
+      ) as HTMLElement | null;
+      if (target) {
+        scrollLock.current = true;
+        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        setTimeout(() => {
+          scrollLock.current = false;
+        }, SCROLL_LOCK_MS);
+      }
+    },
+    [entries]
+  );
+
+  function startLongPress(
+    type: "channel" | "list",
+    id: string,
+    name: string
+  ) {
+    if (!isTouchDevice) return;
+    longPressTriggered.current = false;
+    if (longPressTimeout.current) clearTimeout(longPressTimeout.current);
+    longPressTimeout.current = window.setTimeout(() => {
+      longPressTriggered.current = true;
+      if (window.confirm(`Delete ${name}?`)) {
+        if (type === "channel") removeChannel(id);
+        else removeList(id);
+      }
+    }, 600);
+  }
+
+  function cancelLongPress(e?: TouchEvent) {
+    if (!isTouchDevice) return;
+    if (longPressTimeout.current) clearTimeout(longPressTimeout.current);
+    if (longPressTriggered.current && e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  }
 
   const activeChannel: Channel | null = useMemo(
     () => channels.find((c) => c.id === activeId) || null,
@@ -182,7 +235,7 @@ export default function ScrollApp() {
                     ...p,
                     [arxivId]: p[arxivId] === "read" ? "read" : "viewed",
                   }));
-                }, 5000);
+                }, 2000);
               }
             }
 
@@ -229,22 +282,6 @@ export default function ScrollApp() {
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
-
-    const SCROLL_LOCK_MS = 275;
-    function scrollToIndex(idx: number) {
-      if (!el) return;
-      const clamped = Math.max(0, Math.min(idx, (entries?.length || 1) - 1));
-      const target = el.querySelector(
-        `[data-index="${clamped}"]`
-      ) as HTMLElement | null;
-      if (target) {
-        scrollLock.current = true;
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
-        setTimeout(() => {
-          scrollLock.current = false;
-        }, SCROLL_LOCK_MS);
-      }
-    }
 
     function onWheel(e: WheelEvent) {
       if (scrollLock.current) return e.preventDefault();
@@ -300,7 +337,7 @@ export default function ScrollApp() {
         el.removeEventListener("touchend", onTouchEnd as EventListener);
         window.removeEventListener("keydown", onKeyDown as EventListener);
       };
-  }, [pageIndex, entries?.length]);
+  }, [pageIndex, entries?.length, scrollToIndex]);
 
   function openSaveMenu(entry: ArxivEntry) {
     markRead(entry.arxivId);
@@ -384,6 +421,12 @@ export default function ScrollApp() {
 
   const visibleEntries = useMemo(() => entries || [], [entries]);
 
+  const firstUnreadIndex = useMemo(
+    () =>
+      visibleEntries.findIndex((e) => statuses[e.arxivId] !== "read"),
+    [visibleEntries, statuses]
+  );
+
     return (
       <div className="h-screen w-full text-zinc-100 flex flex-col overflow-hidden relative">
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(139,92,246,0.2)_0%,_transparent_60%),radial-gradient(ellipse_at_bottom_right,_rgba(56,189,248,0.15)_0%,_transparent_60%)]" />
@@ -391,7 +434,7 @@ export default function ScrollApp() {
         <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
           <div className="px-4 py-3 flex items-center gap-2">
             <div
-              className="h-7 w-7 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400 animate-pulse"
+              className="h-9 w-9 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400"
               style={{
                 WebkitMaskImage: `url(${scrollIcon})`,
                 maskImage: `url(${scrollIcon})`,
@@ -429,9 +472,16 @@ export default function ScrollApp() {
                     ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
+                onTouchStart={() => startLongPress("channel", ch.id, ch.name)}
+                onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
+                onTouchMove={() => cancelLongPress()}
+                onTouchCancel={() => cancelLongPress()}
               >
                 <button
-                  onClick={() => setActiveId(ch.id)}
+                  onClick={() => {
+                    if (longPressTriggered.current) return;
+                    setActiveId(ch.id);
+                  }}
                   title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"} | Categories: ${ch.categories.join(", ") || "—"}`}
                   className="text-sm whitespace-nowrap"
                 >
@@ -466,9 +516,16 @@ export default function ScrollApp() {
                     ? "bg-gradient-to-r from-emerald-600/40 to-teal-600/40 border-emerald-500/40"
                     : "bg-emerald-500/10 border-emerald-400/20 hover:bg-emerald-500/20"
                 )}
+                onTouchStart={() => startLongPress("list", list.id, list.name)}
+                onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
+                onTouchMove={() => cancelLongPress()}
+                onTouchCancel={() => cancelLongPress()}
               >
                 <button
-                  onClick={() => setActiveId(`list:${list.id}`)}
+                  onClick={() => {
+                    if (longPressTriggered.current) return;
+                    setActiveId(`list:${list.id}`);
+                  }}
                   className="flex items-center gap-1"
                 >
                   <Bookmark className="h-3.5 w-3.5" />
@@ -705,6 +762,15 @@ export default function ScrollApp() {
           </div>
         )}
       </div>
+
+      {firstUnreadIndex >= 0 && firstUnreadIndex !== pageIndex && (
+        <button
+          className="fixed bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-fuchsia-600 hover:bg-fuchsia-700 text-sm shadow-lg"
+          onClick={() => scrollToIndex(firstUnreadIndex)}
+        >
+          Jump to latest unread
+        </button>
+      )}
 
       {/* Footer: rate limit + page indicator */}
       <div className="shrink-0 px-3 py-2 text-xs text-zinc-400 flex items-center gap-3 border-t border-white/5 bg-black/40 backdrop-blur-xl">
