@@ -9,7 +9,8 @@ export async function fetchAltmetric(
   retryAfterSec?: number;
 }> {
   const baseId = arxivId.replace(/v\d+$/, "");
-  const res = await fetch(`https://api.altmetric.com/v1/arxiv/${baseId}`, {
+  const url = `https://api.altmetric.com/v1/arxiv/${baseId}`;
+  const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`, {
     headers: { Accept: "application/json" },
   });
 

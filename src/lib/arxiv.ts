@@ -30,7 +30,7 @@ function buildArxivQuery(ch: Channel) {
 
 export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
   const url = buildArxivQuery(channel);
-  const res = await fetch(url);
+  const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
   const text = await res.text();
 
   const parser = new DOMParser();
