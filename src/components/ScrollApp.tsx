@@ -37,6 +37,9 @@ export default function ScrollApp() {
   const [entries, setEntries] = useState<ArxivEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [debugLogs, setDebugLogs] = useState<string[]>([]);
+  const debug = (msg: string) =>
+    setDebugLogs((p) => [...p, msg].slice(-20));
 
   const [altCache, setAltCache] = useState<
     Record<
@@ -89,11 +92,13 @@ export default function ScrollApp() {
     (async () => {
       setLoading(true);
       setError(null);
+      debug(`Fetching arXiv for ${activeChannel.name}`);
       try {
         const res = await fetchArxiv(activeChannel);
         Object.values(viewTimers.current).forEach(clearTimeout);
         viewTimers.current = {};
         setEntries(res);
+        debug(`Loaded ${res.length} entries`);
         const stored = lastPositions.current[activeChannel.id] || 0;
         setPageIndex(stored);
         setTimeout(() => {
@@ -104,9 +109,10 @@ export default function ScrollApp() {
           else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
         }, 0);
       } catch (e: unknown) {
-        setError(
-          e instanceof Error ? e.message : "Failed to load papers from arXiv"
-        );
+        const msg =
+          e instanceof Error ? e.message : "Failed to load papers from arXiv";
+        setError(msg);
+        debug(`Error: ${msg}`);
       } finally {
         setLoading(false);
       }
@@ -153,7 +159,10 @@ export default function ScrollApp() {
                 if (status === 429 && retryAfterSec) {
                   setRateLimitHoldUntil(now + retryAfterSec * 1000);
                 }
-              } catch {
+              } catch (err) {
+                debug(
+                  `Altmetric error for ${arxivId}: ${err instanceof Error ? err.message : String(err)}`
+                );
                 setAltCache((p) => ({
                   ...p,
                   [arxivId]: { counts: null, status: 0 },
@@ -566,6 +575,11 @@ export default function ScrollApp() {
           </div>
         ) : null}
       </div>
+      {debugLogs.length > 0 && (
+        <div className="fixed bottom-2 left-2 z-50 max-w-xs text-xs text-red-400 bg-black/70 p-2 rounded whitespace-pre-wrap">
+          {debugLogs.join("\n")}
+        </div>
+      )}
     </div>
   );
 }

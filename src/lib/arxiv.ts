@@ -32,6 +32,9 @@ export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
   const url = buildArxivQuery(channel);
   const res = await fetch(`/api/proxy?url=${encodeURIComponent(url)}`);
   const text = await res.text();
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
 
   const parser = new DOMParser();
   const xml = parser.parseFromString(text, "application/xml");
