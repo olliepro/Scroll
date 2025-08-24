@@ -4,12 +4,15 @@ import { fetchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import { faviconsForArxivUrl } from "../lib/affiliations";
 import {
   CATEGORY_LABELS,
   LS_CHANNELS,
   LS_LISTS,
   LS_LAST_CHANNEL,
   LS_STATUSES,
+  LS_OPENAI_KEY,
+  LS_ORG_CACHE,
   defaultChannels,
 } from "../constants";
 import type {
@@ -18,6 +21,7 @@ import type {
   ArxivEntry,
   RateLimitInfo,
   SavedList,
+  OrgInfo,
 } from "../types";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
@@ -42,6 +46,16 @@ export default function ScrollApp() {
   const [entries, setEntries] = useState<ArxivEntry[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [openaiKey, setOpenaiKey] = useLocalStorage<string>(
+    LS_OPENAI_KEY,
+    ""
+  );
+  const [orgCache, setOrgCache] = useLocalStorage<Record<string, OrgInfo[]>>(
+    LS_ORG_CACHE,
+    {}
+  );
+  const [orgLoading, setOrgLoading] = useState(false);
 
   const [altCache, setAltCache] = useState<
     Record<
@@ -142,6 +156,11 @@ export default function ScrollApp() {
       e.preventDefault();
       e.stopPropagation();
     }
+  }
+
+  function promptApiKey() {
+    const key = window.prompt("Enter OpenAI API key", openaiKey || "");
+    if (key !== null) setOpenaiKey(key.trim());
   }
 
   const activeChannel: Channel | null = useMemo(
@@ -277,6 +296,42 @@ export default function ScrollApp() {
   useEffect(() => {
     lastPositions.current[activeId] = pageIndex;
   }, [pageIndex, activeId]);
+
+  // Fetch affiliations for papers
+  useEffect(() => {
+    if (!entries || !openaiKey) return;
+    const missing = entries.filter((e) => orgCache[e.arxivId] === undefined);
+    if (missing.length === 0) return;
+    let cancelled = false;
+    setOrgLoading(true);
+    Promise.all(
+      missing.map(async (e) => {
+        const htmlUrl = e.link.replace("/abs/", "/html/");
+        try {
+          const orgs = await faviconsForArxivUrl(htmlUrl, openaiKey);
+          return { id: e.arxivId, orgs };
+        } catch {
+          return { id: e.arxivId, orgs: [] as OrgInfo[] };
+        }
+      })
+    )
+      .then((res) => {
+        if (cancelled) return;
+        setOrgCache((p) => {
+          const next = { ...p };
+          res.forEach((r) => {
+            next[r.id] = r.orgs;
+          });
+          return next;
+        });
+      })
+      .finally(() => {
+        if (!cancelled) setOrgLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [entries, openaiKey, orgCache, setOrgCache]);
 
   // Controlled page-by-page scrolling (no multi-skip, snappy)
   useEffect(() => {
@@ -448,6 +503,12 @@ export default function ScrollApp() {
               Scrolls
             </div>
             <div className="ml-auto flex items-center gap-2">
+              <button
+                onClick={promptApiKey}
+                className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10"
+              >
+                API Key
+              </button>
               <button
                 onClick={() => setAdding(true)}
                 className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
@@ -756,6 +817,7 @@ export default function ScrollApp() {
                   altStatus={altCache[e.arxivId]?.status}
                   status={statuses[e.arxivId] || "unviewed"}
                   onMarkRead={() => markRead(e.arxivId)}
+                  orgs={orgCache[e.arxivId]}
                 />
               ))}
             </div>
@@ -809,6 +871,11 @@ export default function ScrollApp() {
           </div>
         ) : null}
       </div>
+      {orgLoading && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
+          <img src={scrollIcon} className="h-32 w-32 animate-pulse" alt="Loading" />
+        </div>
+      )}
     </div>
   );
 }

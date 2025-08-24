@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart, X } from "lucide-react";
 import { FaXTwitter } from "react-icons/fa6";
 import { FaRedditAlien, FaWikipediaW } from "react-icons/fa";
-import type { AltmetricCounts, ArxivEntry } from "../types";
+import type { AltmetricCounts, ArxivEntry, OrgInfo } from "../types";
 import { CATEGORY_LABELS } from "../constants";
 import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
 import { MetricChip } from "./MetricChip";
@@ -17,6 +17,7 @@ export function PaperCard({
   altStatus,
   status,
   onMarkRead,
+  orgs,
 }: {
   entry: ArxivEntry;
   index: number;
@@ -26,6 +27,7 @@ export function PaperCard({
   altStatus: number | undefined;
   status: "unviewed" | "viewed" | "read";
   onMarkRead: () => void;
+  orgs?: OrgInfo[];
 }) {
   const [showFull, setShowFull] = useState(false);
   const statusSymbol =
@@ -142,6 +144,45 @@ export function PaperCard({
                 </span>
               ))}
             </div>
+            {/* Organizations */}
+            {orgs && orgs.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {orgs.map((o) =>
+                  o.domain ? (
+                    <a
+                      key={o.name}
+                      href={`https://${o.domain}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                    >
+                      {o.favicon && (
+                        <img
+                          src={o.favicon}
+                          alt=""
+                          className="h-3.5 w-3.5 rounded-sm"
+                        />
+                      )}
+                      {o.name}
+                    </a>
+                  ) : (
+                    <span
+                      key={o.name}
+                      className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                    >
+                      {o.favicon && (
+                        <img
+                          src={o.favicon}
+                          alt=""
+                          className="h-3.5 w-3.5 rounded-sm"
+                        />
+                      )}
+                      {o.name}
+                    </span>
+                  )
+                )}
+              </div>
+            )}
             {/* Abstract */}
             <p
               ref={paraRef}
