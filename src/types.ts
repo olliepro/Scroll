@@ -2,7 +2,6 @@ export interface Channel {
   id: string;
   name: string;
   keywords: string; // stored serialized; edited via chips input
-  categories: string[];
   maxResults?: number;
 }
 
@@ -15,7 +14,6 @@ export interface ArxivEntry {
   pdfUrl?: string;
   link: string;
   published: string;
-  categories: string[];
 }
 
 export interface OrgInfo {

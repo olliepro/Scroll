@@ -217,11 +217,42 @@ export function faviconUrlForDomain(domain: string, size = 128): string {
   return `https://www.google.com/s2/favicons?domain=${d}&sz=${size}`;
 }
 
+const DEFAULT_FAVICON_SHA256 =
+  "59bfe9bc385ad69f50793ce4a53397316d7a875a7148a63c16df9b674c6cda64";
+
+async function sha256Hex(buf: ArrayBuffer): Promise<string> {
+  const hash = await crypto.subtle.digest("SHA-256", buf);
+  const arr = Array.from(new Uint8Array(hash));
+  return arr.map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function fetchFavicon(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const buf = await res.arrayBuffer();
+    const hash = await sha256Hex(buf);
+    if (hash === DEFAULT_FAVICON_SHA256) return null;
+    const bytes = new Uint8Array(buf);
+    let binary = "";
+    for (const b of bytes) binary += String.fromCharCode(b);
+    const base64 = btoa(binary);
+    const mime = res.headers.get("content-type") || "image/png";
+    return `data:${mime};base64,${base64}`;
+  } catch {
+    return null;
+  }
+}
+
 export async function orgToFavicon(name: string, size = 128): Promise<OrgInfo> {
   const qid = await wikidataQidForLabel(name);
   const entity: WikidataEntity = qid ? await wikidataEntity(qid) : {};
   const domain = domainFromP856(entity);
-  const favicon = domain ? faviconUrlForDomain(domain, size) : null;
+  let favicon: string | null = null;
+  if (domain) {
+    const url = faviconUrlForDomain(domain, size);
+    favicon = await fetchFavicon(url);
+  }
   return { name, domain, favicon };
 }
 

@@ -2,10 +2,6 @@ import type { Channel, ArxivEntry } from "../types";
 import { extractArxivIdFromAbsUrl, tokenizeKeywords } from "./utils";
 
 function buildArxivQuery(ch: Channel) {
-  const catClause = ch.categories?.length
-    ? `(${ch.categories.map((c) => `cat:${c}`).join(" OR ")})`
-    : "";
-
   const kws = tokenizeKeywords(ch.keywords);
   const kwClause = kws.length
     ? `(${kws
@@ -13,9 +9,7 @@ function buildArxivQuery(ch: Channel) {
         .join(" AND ")})`
     : "";
 
-  const raw =
-    [catClause, kwClause].filter(Boolean).join(" AND ") ||
-    `all:"machine learning"`;
+  const raw = kwClause || `all:"machine learning"`;
 
   const params = new URLSearchParams({
     search_query: raw,
@@ -58,9 +52,6 @@ export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
     const pdfEl = Array.from(e.getElementsByTagName("link")).find(
       (l) => l.getAttribute("type") === "application/pdf"
     );
-    const categories = Array.from(e.getElementsByTagName("category")).map(
-      (c) => c.getAttribute("term") || ""
-    );
 
     return {
       id,
@@ -71,7 +62,6 @@ export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
       link: linkEl?.getAttribute("href") || id,
       pdfUrl: pdfEl?.getAttribute("href") || undefined,
       published,
-      categories,
     };
   });
 

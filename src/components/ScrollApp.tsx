@@ -6,7 +6,6 @@ import { clsx, tokenizeKeywords } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { faviconsForArxivUrl } from "../lib/affiliations";
 import {
-  CATEGORY_LABELS,
   LS_CHANNELS,
   LS_LISTS,
   LS_LAST_CHANNEL,
@@ -81,7 +80,6 @@ export default function ScrollApp() {
     id: "",
     name: "",
     keywords: "",
-    categories: [],
   });
 
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -461,7 +459,7 @@ export default function ScrollApp() {
     setChannels((prev) => [newCh, ...prev]);
     setActiveId(id);
     setAdding(false);
-    setNewChannel({ id: "", name: "", keywords: "", categories: [] });
+    setNewChannel({ id: "", name: "", keywords: "" });
   }
 
   function removeChannel(id: string) {
@@ -543,7 +541,7 @@ export default function ScrollApp() {
                     if (longPressTriggered.current) return;
                     setActiveId(ch.id);
                   }}
-                  title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"} | Categories: ${ch.categories.join(", ") || "—"}`}
+                  title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"}`}
                   className="text-sm whitespace-nowrap"
                 >
                   {ch.name}
@@ -688,8 +686,7 @@ export default function ScrollApp() {
           >
             <div className="text-lg font-semibold">Create a Channel</div>
             <div className="text-zinc-400 text-sm">
-              Channels are sets of filters: keywords and arXiv categories. Newest
-              first.
+              Channels are sets of filters: keywords. Newest first.
             </div>
 
             <div className="space-y-3 mt-3">
@@ -721,37 +718,6 @@ export default function ScrollApp() {
                 </div>
               </div>
 
-              <div>
-                <label className="text-sm text-zinc-300">Categories</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {Object.entries(CATEGORY_LABELS).map(([code, label]) => {
-                    const active = newChannel.categories.includes(code);
-                    return (
-                      <button
-                        key={code}
-                        onClick={() =>
-                          setNewChannel((p) => ({
-                            ...p,
-                            categories: active
-                              ? p.categories.filter((c) => c !== code)
-                              : [...p.categories, code],
-                          }))
-                        }
-                        className={clsx(
-                          "px-2.5 py-1 rounded-full text-xs border",
-                          active
-                            ? "bg-fuchsia-600/30 border-fuchsia-500 text-fuchsia-200"
-                            : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10"
-                        )}
-                      >
-                        {label}
-                        <span className="opacity-60 ml-1">({code})</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10"
@@ -767,17 +733,16 @@ export default function ScrollApp() {
                       ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600 shadow-lg shadow-fuchsia-500/20"
                       : "bg-white/10 text-white/50"
                   )}
-                  onClick={() =>
-                    addChannel({
-                      name: newChannel.name.trim(),
-                      keywords: newChannel.keywords.trim(),
-                      categories: newChannel.categories,
-                      maxResults: 40,
-                    })
-                  }
-                >
-                  Create
-                </button>
+                    onClick={() =>
+                      addChannel({
+                        name: newChannel.name.trim(),
+                        keywords: newChannel.keywords.trim(),
+                        maxResults: 40,
+                      })
+                    }
+                  >
+                    Create
+                  </button>
               </div>
             </div>
           </div>

@@ -4,7 +4,6 @@ import { ExternalLink, FileDown, Heart, X } from "lucide-react";
 import { FaXTwitter } from "react-icons/fa6";
 import { FaRedditAlien, FaWikipediaW } from "react-icons/fa";
 import type { AltmetricCounts, ArxivEntry, OrgInfo } from "../types";
-import { CATEGORY_LABELS } from "../constants";
 import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
 import { MetricChip } from "./MetricChip";
 
@@ -132,17 +131,6 @@ export function PaperCard({
             <div className="mt-1 text-sm text-zinc-400">
               {entry.authors.slice(0, 6).join(", ")}
               {entry.authors.length > 6 && " et al."}
-            </div>
-            {/* Categories */}
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {entry.categories.slice(0, 6).map((c) => (
-                <span
-                  key={c}
-                  className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300"
-                >
-                  {CATEGORY_LABELS[c] || c}
-                </span>
-              ))}
             </div>
             {/* Organizations */}
             {orgs && orgs.length > 0 && (
