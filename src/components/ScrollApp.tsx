@@ -113,6 +113,18 @@ export default function ScrollApp() {
 
   const SCROLL_LOCK_MS = 275;
 
+  useEffect(() => {
+    const setVh = () => {
+      document.documentElement.style.setProperty(
+        "--vh",
+        `${window.innerHeight * 0.01}px`,
+      );
+    };
+    setVh();
+    window.addEventListener("resize", setVh);
+    return () => window.removeEventListener("resize", setVh);
+  }, []);
+
   const scrollToIndex = useCallback(
     (idx: number) => {
       const el = containerRef.current;
@@ -476,14 +488,17 @@ export default function ScrollApp() {
 
   const visibleEntries = useMemo(() => entries || [], [entries]);
 
-  const firstUnreadIndex = useMemo(
+  const firstUnseenIndex = useMemo(
     () =>
-      visibleEntries.findIndex((e) => statuses[e.arxivId] !== "read"),
+      visibleEntries.findIndex((e) => statuses[e.arxivId] === "unviewed"),
     [visibleEntries, statuses]
   );
 
     return (
-      <div className="h-screen w-full text-zinc-100 flex flex-col overflow-hidden relative">
+      <div
+        className="w-full text-zinc-100 flex flex-col overflow-hidden relative"
+        style={{ height: "calc(var(--vh, 1vh) * 100)" }}
+      >
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(139,92,246,0.2)_0%,_transparent_60%),radial-gradient(ellipse_at_bottom_right,_rgba(56,189,248,0.15)_0%,_transparent_60%)]" />
         {/* Top bar */}
         <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
@@ -679,11 +694,13 @@ export default function ScrollApp() {
       {/* Create Channel modal */}
       {adding && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          style={{ height: "calc(var(--vh, 1vh) * 100)" }}
           onClick={() => setAdding(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4"
+            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4 overflow-y-auto"
+            style={{ maxHeight: "calc(var(--vh, 1vh) * 100)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-lg font-semibold">Create a Channel</div>
@@ -825,12 +842,12 @@ export default function ScrollApp() {
         )}
       </div>
 
-      {firstUnreadIndex >= 0 && firstUnreadIndex !== pageIndex && (
+      {firstUnseenIndex >= 0 && firstUnseenIndex !== pageIndex && (
         <button
           className="fixed bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-fuchsia-600 hover:bg-fuchsia-700 text-sm shadow-lg"
-          onClick={() => scrollToIndex(firstUnreadIndex)}
+          onClick={() => scrollToIndex(firstUnseenIndex)}
         >
-          Jump to latest unread
+          Jump to latest unseen
         </button>
       )}
 
