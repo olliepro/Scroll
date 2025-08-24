@@ -9,6 +9,8 @@ const ABSTRACT_MARKERS = [
 ].map((s) => s.toLowerCase());
 
 const DEFAULT_MAX_BYTES = 262_144;
+const GOOGLE_FAVICON_FALLBACK_SHA256 =
+  "59bfe9bc385ad69f50793ce4a53397316d7a875a7148a63c16df9b674c6cda64";
 
 function foundAbstract(buf: Uint8Array): boolean {
   const text = new TextDecoder().decode(buf).toLowerCase();
@@ -217,11 +219,30 @@ export function faviconUrlForDomain(domain: string, size = 128): string {
   return `https://www.google.com/s2/favicons?domain=${d}&sz=${size}`;
 }
 
+async function isGoogleFallbackFavicon(url: string): Promise<boolean> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return false;
+    const buf = await res.arrayBuffer();
+    const hash = await crypto.subtle.digest("SHA-256", buf);
+    const hex = Array.from(new Uint8Array(hash))
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+    return hex === GOOGLE_FAVICON_FALLBACK_SHA256;
+  } catch {
+    return false;
+  }
+}
+
 export async function orgToFavicon(name: string, size = 128): Promise<OrgInfo> {
   const qid = await wikidataQidForLabel(name);
   const entity: WikidataEntity = qid ? await wikidataEntity(qid) : {};
   const domain = domainFromP856(entity);
-  const favicon = domain ? faviconUrlForDomain(domain, size) : null;
+  let favicon: string | null = null;
+  if (domain) {
+    const url = faviconUrlForDomain(domain, size);
+    if (!(await isGoogleFallbackFavicon(url))) favicon = url;
+  }
   return { name, domain, favicon };
 }
 
