@@ -171,7 +171,7 @@ async function wikidataQidForLabel(name: string): Promise<string | null> {
     type: "item",
     limit: "1",
     format: "json",
-    origin: "*"
+    origin: "*",
   });
   const res = await fetch(`${WIKIDATA_API}?${params.toString()}`);
   if (!res.ok) return null;
@@ -185,6 +185,7 @@ async function wikidataEntity(qid: string): Promise<WikidataEntity> {
     ids: qid,
     props: "claims",
     format: "json",
+    origin: "*",
   });
   const res = await fetch(`${WIKIDATA_API}?${params.toString()}`);
   if (!res.ok) return {};
