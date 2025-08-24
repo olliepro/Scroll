@@ -93,10 +93,10 @@ const ORG_SCHEMA = {
 
 const SYS_INSTRUCTIONS =
   "Extract only the names of organizations that authors are affiliated with. " +
-  "Return canonical institution names only (e.g., 'Stanford University', 'Google DeepMind', 'MIT'). " +
-  "Rules: (1) Deduplicate; (2) Drop departments, schools, cities, countries, postal codes; " +
+  "Return canonical institution names only (e.g., 'Stanford', 'Google DeepMind', 'MIT'). " +
+  "Rules: (1) Deduplicate; (2) Drop departments, schools, cities, countries, postal codes, 'team' names, etc; " +
   "(3) Prefer the parent organization (e.g., 'Harvard University' over 'School of Engineering'); " +
-  "(4) Drop email addresses and footnote markers; (5) Output nothing else.";
+  "(4) Drop email addresses and footnote markers; (5) For uber well-known orgs, you can use the short name or acronym (e.g. 'UC Berkeley', 'MIT', 'Standford'";
 
 export async function extractOrgsWithOpenAI(
   authorBlockText: string,
