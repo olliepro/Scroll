@@ -476,14 +476,17 @@ export default function ScrollApp() {
 
   const visibleEntries = useMemo(() => entries || [], [entries]);
 
-  const firstUnreadIndex = useMemo(
+  const firstUnseenIndex = useMemo(
     () =>
-      visibleEntries.findIndex((e) => statuses[e.arxivId] !== "read"),
+      visibleEntries.findIndex((e) => statuses[e.arxivId] === "unviewed"),
     [visibleEntries, statuses]
   );
 
     return (
-      <div className="h-screen w-full text-zinc-100 flex flex-col overflow-hidden relative">
+      <div
+        className="w-full text-zinc-100 flex flex-col overflow-hidden relative"
+        style={{ height: "100dvh" }}
+      >
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(139,92,246,0.2)_0%,_transparent_60%),radial-gradient(ellipse_at_bottom_right,_rgba(56,189,248,0.15)_0%,_transparent_60%)]" />
         {/* Top bar */}
         <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
@@ -679,7 +682,7 @@ export default function ScrollApp() {
       {/* Create Channel modal */}
       {adding && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 overflow-y-auto bg-black/80 backdrop-blur-sm p-4 flex items-center justify-center"
           onClick={() => setAdding(false)}
         >
           <div
@@ -825,12 +828,12 @@ export default function ScrollApp() {
         )}
       </div>
 
-      {firstUnreadIndex >= 0 && firstUnreadIndex !== pageIndex && (
+      {firstUnseenIndex >= 0 && firstUnseenIndex !== pageIndex && (
         <button
           className="fixed bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-fuchsia-600 hover:bg-fuchsia-700 text-sm shadow-lg"
-          onClick={() => scrollToIndex(firstUnreadIndex)}
+          onClick={() => scrollToIndex(firstUnseenIndex)}
         >
-          Jump to latest unread
+          Jump to latest unseen
         </button>
       )}
 

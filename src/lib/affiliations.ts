@@ -1,5 +1,8 @@
 import type { OrgInfo } from "../types";
 
+const GOOGLE_FAVICON_FALLBACK_HASH =
+  "59bfe9bc385ad69f50793ce4a53397316d7a875a7148a63c16df9b674c6cda64";
+
 const ABSTRACT_MARKERS = [
   ">abstract<",
   ">abstract.<",
@@ -221,7 +224,22 @@ export async function orgToFavicon(name: string, size = 128): Promise<OrgInfo> {
   const qid = await wikidataQidForLabel(name);
   const entity: WikidataEntity = qid ? await wikidataEntity(qid) : {};
   const domain = domainFromP856(entity);
-  const favicon = domain ? faviconUrlForDomain(domain, size) : null;
+  let favicon: string | null = null;
+  if (domain) {
+    const url = faviconUrlForDomain(domain, size);
+    try {
+      const res = await fetch(url);
+      const buf = await res.arrayBuffer();
+      const hashBuf = await crypto.subtle.digest("SHA-256", buf);
+      const hashArray = Array.from(new Uint8Array(hashBuf));
+      const hashHex = hashArray.map((b) => b.toString(16).padStart(2, "0")).join("");
+      if (hashHex !== GOOGLE_FAVICON_FALLBACK_HASH) {
+        favicon = url;
+      }
+    } catch {
+      // ignore errors; leave favicon null
+    }
+  }
   return { name, domain, favicon };
 }
 
