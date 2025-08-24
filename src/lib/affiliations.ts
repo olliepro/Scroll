@@ -217,11 +217,33 @@ export function faviconUrlForDomain(domain: string, size = 128): string {
   return `https://www.google.com/s2/favicons?domain=${d}&sz=${size}`;
 }
 
+const DEFAULT_FAVICON_B64 =
+  "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsSAAALEgHS3X78AAACiElEQVQ4EaVTzU8TURCf2tJuS7tQtlRb6UKBIkQwkRRSEzkQgyEc6lkOKgcOph78Y+CgjXjDs2i44FXY9AMTlQRUELZapVlouy3d7kKtb0Zr0MSLTvL2zb75eL838xtTvV6H/xELBptMJojeXLCXyobnyog4YhzXYvmCFi6qVSfaeRdXdrfaU1areV5KykmX06rcvzumjY/1ggkR3Jh+bNf1mr8v1D5bLuvR3qDgFbvbBJYIrE1mCIoCrKxsHuzK+Rzvsi29+6DEbTZz9unijEYI8ObBgXOzlcrx9OAlXyDYKUCzwwrDQx1wVDGg089Dt+gR3mxmhcUnaWeoxwMbm/vzDFzmDEKMMNhquRqduT1KwXiGt0vre6iSeAUHNDE0d26NBtAXY9BACQyjFusKuL2Ry+IPb/Y9ZglwuVscdHaknUChqLF/O4jn3V5dP4mhgRJgwSYm+gV0Oi3XrvYB30yvhGa7BS70eGFHPoTJyQHhMK+F0ZesRVVznvXw5Ixv7/C10moEo6OZXbWvlFAF9FVZDOqEABUMRIkMd8GnLwVWg9/RkJF9sA4oDfYQAuzzjqzwvnaRUFxn/X2ZlmGLXAE7AL52B4xHgqAUqrC1nSNuoJkQtLkdqReszz/9aRvq90NOKdOS1nch8TpL555WDp49f3uAMXhACRjD5j4ykuCtf5PP7Fm1b0DIsl/VHGezzP1KwOiZQobFF9YyjSRYQETRENSlVzI8iK9mWlzckpSSCQHVALmN9Az1euDho9Xo8vKGd2rqooA8yBcrwHgCqYR0kMkWci08t/R+W4ljDCanWTg9TJGwGNaNk3vYZ7VUdeKsYJGFNkfSzjXNrSX20s4/h6kB81/271ghG17l+rPTAAAAAElFTkSuQmCC";
+
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary);
+}
+
 export async function orgToFavicon(name: string, size = 128): Promise<OrgInfo> {
   const qid = await wikidataQidForLabel(name);
   const entity: WikidataEntity = qid ? await wikidataEntity(qid) : {};
   const domain = domainFromP856(entity);
-  const favicon = domain ? faviconUrlForDomain(domain, size) : null;
+  let favicon = domain ? faviconUrlForDomain(domain, size) : null;
+  if (favicon) {
+    try {
+      const res = await fetch(favicon);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        const b64 = arrayBufferToBase64(buf);
+        if (b64 === DEFAULT_FAVICON_B64) favicon = null;
+      }
+    } catch {
+      // ignore errors
+    }
+  }
   return { name, domain, favicon };
 }
 
