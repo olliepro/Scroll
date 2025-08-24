@@ -84,6 +84,17 @@ export default function ScrollApp() {
     categories: [],
   });
 
+  useEffect(() => {
+    if (adding) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [adding]);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const scrollLock = useRef(false);
@@ -490,7 +501,10 @@ export default function ScrollApp() {
 
   const firstUnseenIndex = useMemo(
     () =>
-      visibleEntries.findIndex((e) => statuses[e.arxivId] === "unviewed"),
+      visibleEntries.findIndex(
+        (e) =>
+          statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
+      ),
     [visibleEntries, statuses]
   );
 
@@ -694,7 +708,7 @@ export default function ScrollApp() {
       {/* Create Channel modal */}
       {adding && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden"
           style={{ height: "calc(var(--vh, 1vh) * 100)" }}
           onClick={() => setAdding(false)}
         >

@@ -35,7 +35,10 @@ export function PaperCard({
   const [lineClamp, setLineClamp] = useState(14);
   const [orgsOpen, setOrgsOpen] = useState(false);
   const orgIcons = orgs?.filter((o) => o.favicon) ?? [];
-  const orgExtra = orgs ? orgs.length - Math.min(5, orgIcons.length) : 0;
+  const shouldCollapse = !!orgs && orgs.length > 2;
+  const orgExtra = shouldCollapse
+    ? orgs.length - (orgIcons.length > 0 ? Math.min(5, orgIcons.length) : 1)
+    : 0;
 
   useEffect(() => {
     function calcClamp() {
@@ -51,6 +54,17 @@ export function PaperCard({
     window.addEventListener("resize", calcClamp);
     return () => window.removeEventListener("resize", calcClamp);
   }, [entry.summary]);
+
+  useEffect(() => {
+    if (showFull) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showFull]);
   return (
     <>
       <section
@@ -127,7 +141,7 @@ export function PaperCard({
           </div>
 
           {/* Title + Authors */}
-          <div className="px-4 pt-4 pb-2 flex-1 overflow-hidden">
+          <div className="px-4 pt-4 pb-1 flex-1 overflow-hidden">
             <h2
               className="text-xl sm:text-2xl font-semibold leading-snug text-white"
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
@@ -139,66 +153,109 @@ export function PaperCard({
             {/* Organizations */}
             {orgs && orgs.length > 0 && (
               <div className="mt-2 flex flex-wrap gap-1.5">
-                {orgsOpen ? (
-                  <>
-                    {orgs.map((o) =>
-                      o.domain ? (
-                        <a
-                          key={o.name}
-                          href={`https://${o.domain}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
-                        >
-                          {o.favicon && (
-                            <img
-                              src={o.favicon}
-                              alt=""
-                              className="h-3.5 w-3.5 rounded-sm"
-                            />
-                          )}
-                          {o.name}
-                        </a>
-                      ) : (
-                        <span
-                          key={o.name}
-                          className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
-                        >
-                          {o.favicon && (
-                            <img
-                              src={o.favicon}
-                              alt=""
-                              className="h-3.5 w-3.5 rounded-sm"
-                            />
-                          )}
-                          {o.name}
-                        </span>
-                      ),
-                    )}
+                {shouldCollapse ? (
+                  orgsOpen ? (
+                    <>
+                      {orgs.map((o) =>
+                        o.domain ? (
+                          <a
+                            key={o.name}
+                            href={`https://${o.domain}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                          >
+                            {o.favicon && (
+                              <img
+                                src={o.favicon}
+                                alt=""
+                                className="h-3.5 w-3.5 rounded-sm"
+                              />
+                            )}
+                            {o.name}
+                          </a>
+                        ) : (
+                          <span
+                            key={o.name}
+                            className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                          >
+                            {o.favicon && (
+                              <img
+                                src={o.favicon}
+                                alt=""
+                                className="h-3.5 w-3.5 rounded-sm"
+                              />
+                            )}
+                            {o.name}
+                          </span>
+                        ),
+                      )}
+                      <button
+                        onClick={() => setOrgsOpen(false)}
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </>
+                  ) : (
                     <button
-                      onClick={() => setOrgsOpen(false)}
-                      className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300"
+                      onClick={() => setOrgsOpen(true)}
+                      className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 flex items-center gap-1"
                     >
-                      <X className="h-3 w-3" />
+                      {orgIcons.length > 0 ? (
+                        orgIcons.slice(0, 5).map((o) => (
+                          <img
+                            key={o.name}
+                            src={o.favicon!}
+                            alt=""
+                            className="h-3.5 w-3.5 rounded-sm"
+                          />
+                        ))
+                      ) : (
+                        <span className="text-[11px] text-zinc-300">
+                          {orgs[0].name}
+                        </span>
+                      )}
+                      {orgExtra > 0 && (
+                        <span className="text-[11px] text-zinc-300">+{orgExtra}</span>
+                      )}
                     </button>
-                  </>
+                  )
                 ) : (
-                  <button
-                    onClick={() => setOrgsOpen(true)}
-                    className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 flex items-center gap-1"
-                  >
-                    {orgIcons.slice(0, 5).map((o) => (
-                      <img
+                  orgs.map((o) =>
+                    o.domain ? (
+                      <a
                         key={o.name}
-                        src={o.favicon!}
-                        alt=""
-                        className="h-3.5 w-3.5 rounded-sm"
-                      />
-                    ))}
-                    {orgExtra > 0 && (
-                      <span className="text-[11px] text-zinc-300">+{orgExtra}</span>
-                    )}
-                  </button>
+                        href={`https://${o.domain}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                      >
+                        {o.favicon && (
+                          <img
+                            src={o.favicon}
+                            alt=""
+                            className="h-3.5 w-3.5 rounded-sm"
+                          />
+                        )}
+                        {o.name}
+                      </a>
+                    ) : (
+                      <span
+                        key={o.name}
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                      >
+                        {o.favicon && (
+                          <img
+                            src={o.favicon}
+                            alt=""
+                            className="h-3.5 w-3.5 rounded-sm"
+                          />
+                        )}
+                        {o.name}
+                      </span>
+                    ),
+                  )
                 )}
               </div>
             )}
@@ -219,14 +276,14 @@ export function PaperCard({
                 setShowFull(true);
                 onMarkRead();
               }}
-              className="mt-2 text-xs text-fuchsia-300 hover:underline"
+              className="mt-1 text-xs text-fuchsia-300 hover:underline"
             >
               See more
             </button>
           </div>
 
           {/* Bottom metrics bar */}
-          <div className="mt-auto p-3 sm:p-4 border-t border-white/5 bg-gradient-to-r from-black/40 via-slate-900/40 to-black/40 backdrop-blur">
+          <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-black/40 via-slate-900/40 to-black/40 backdrop-blur">
             <div className="flex items-center gap-3">
               {altCounts?.cited_by_tweeters_count &&
                 altCounts.cited_by_tweeters_count > 1 && (
@@ -272,7 +329,7 @@ export function PaperCard({
     </section>
     {showFull && (
       <div
-        className="fixed inset-0 z-50 bg-black/60 flex justify-end overflow-y-auto"
+        className="fixed inset-0 z-50 bg-black/60 flex justify-end overflow-hidden"
         style={{ height: "calc(var(--vh, 1vh) * 100)" }}
       >
         <motion.div
@@ -281,7 +338,7 @@ export function PaperCard({
           exit={{ x: "100%" }}
           transition={{ type: "spring", stiffness: 260, damping: 30 }}
           className="w-full max-w-md bg-slate-950 p-6 overflow-y-auto"
-          style={{ maxHeight: "calc(var(--vh, 1vh) * 100)" }}
+          style={{ height: "calc(var(--vh, 1vh) * 100)" }}
         >
           <button
             className="mb-4 ml-auto rounded-md p-1 hover:bg-white/10"
