@@ -39,6 +39,7 @@ export function PaperCard({
   const orgExtra = shouldCollapse
     ? orgs.length - (orgIcons.length > 0 ? Math.min(5, orgIcons.length) : 1)
     : 0;
+  const seeMoreRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function calcClamp() {
@@ -46,14 +47,16 @@ export function PaperCard({
       if (!p) return;
       const parent = p.parentElement;
       if (!parent) return;
-      const available = parent.clientHeight - p.offsetTop - 72;
+      const seeMore = seeMoreRef.current;
+      const reserve = (seeMore?.offsetHeight || 0) + 4;
+      const available = parent.clientHeight - p.offsetTop - reserve;
       const lh = parseFloat(getComputedStyle(p).lineHeight || "16");
       if (lh > 0) setLineClamp(Math.max(3, Math.floor(available / lh)));
     }
     calcClamp();
     window.addEventListener("resize", calcClamp);
     return () => window.removeEventListener("resize", calcClamp);
-  }, [entry.summary]);
+  }, [entry.summary, orgsOpen]);
 
   useEffect(() => {
     if (showFull) {
@@ -141,7 +144,7 @@ export function PaperCard({
           </div>
 
           {/* Title + Authors */}
-          <div className="px-4 pt-4 pb-1 flex-1 overflow-hidden">
+          <div className="px-4 pt-4 pb-0 flex-1 overflow-hidden">
             <h2
               className="text-xl sm:text-2xl font-semibold leading-snug text-white"
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
@@ -272,11 +275,12 @@ export function PaperCard({
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
             />
             <button
+              ref={seeMoreRef}
               onClick={() => {
                 setShowFull(true);
                 onMarkRead();
               }}
-              className="mt-1 text-xs text-fuchsia-300 hover:underline"
+              className="mt-0.5 text-xs text-fuchsia-300 hover:underline"
             >
               See more
             </button>
