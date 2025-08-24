@@ -1,4 +1,4 @@
-import type { OrgInfo } from "../types";
+import type { OrgInfo, OrgName } from "../types";
 
 const ABSTRACT_MARKERS = [
   ">abstract<",
@@ -80,7 +80,15 @@ const ORG_SCHEMA = {
     properties: {
       organizations: {
         type: "array",
-        items: { type: "string" },
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            short: { type: "string" },
+            long: { type: "string" },
+          },
+          required: ["short", "long"],
+        },
         description:
           "Unique list of university/company/lab/institute/organization names affiliated with the paper.",
         minItems: 0,
@@ -93,16 +101,17 @@ const ORG_SCHEMA = {
 
 const SYS_INSTRUCTIONS =
   "Extract only the names of organizations that authors are affiliated with. " +
-  "Return canonical institution names only (e.g., 'Stanford', 'Google DeepMind', 'MIT'). " +
+  "For each, return both a short display name and an expanded official name. " +
   "Rules: (1) Deduplicate; (2) Drop departments, schools, cities, countries, postal codes, 'team' names, etc; " +
   "(3) Prefer the parent organization (e.g., 'Harvard University' over 'School of Engineering'); " +
-  "(4) Drop email addresses and footnote markers; (5) For uber well-known orgs, you can use the short name or acronym (e.g. 'UC Berkeley', 'MIT', 'Standford'";
+  "(4) Drop email addresses and footnote markers; (5) For well-known orgs, the short name can be an acronym (e.g. 'MIT' for 'Massachusetts Institute of Technology'); " +
+  "(6) Short and long can be identical.";
 
 export async function extractOrgsWithOpenAI(
   authorBlockText: string,
   apiKey: string,
   model = "gpt-5-nano",
-): Promise<string[]> {
+): Promise<OrgName[]> {
   if (!authorBlockText.trim()) return [];
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
@@ -139,15 +148,21 @@ export async function extractOrgsWithOpenAI(
     ? (parsed.organizations as unknown[])
     : [];
   const seen = new Set<string>();
-  const cleaned: string[] = [];
+  const cleaned: OrgName[] = [];
   for (const o of orgs) {
-    if (typeof o !== "string") continue;
-    let name = o.replace(/\s+/g, " ").trim();
-    name = name.replace(/[\s,;:/-]+$/, "");
-    const key = name.toLowerCase();
-    if (name && !seen.has(key)) {
+    if (typeof o !== "object" || o === null) continue;
+    const rec = o as Record<string, unknown>;
+    const shortVal = rec.short;
+    const longVal = rec.long;
+    if (typeof shortVal !== "string" || typeof longVal !== "string") continue;
+    let short = shortVal.replace(/\s+/g, " ").trim();
+    let long = longVal.replace(/\s+/g, " ").trim();
+    short = short.replace(/[\s,;:/-]+$/, "");
+    long = long.replace(/[\s,;:/-]+$/, "");
+    const key = long.toLowerCase();
+    if (short && long && !seen.has(key)) {
       seen.add(key);
-      cleaned.push(name);
+      cleaned.push({ short, long });
     }
   }
   return cleaned;
@@ -217,12 +232,54 @@ export function faviconUrlForDomain(domain: string, size = 128): string {
   return `https://www.google.com/s2/favicons?domain=${d}&sz=${size}`;
 }
 
-export async function orgToFavicon(name: string, size = 128): Promise<OrgInfo> {
-  const qid = await wikidataQidForLabel(name);
+function arrayBufferToBase64(buf: ArrayBuffer): string {
+  let binary = "";
+  const bytes = new Uint8Array(buf);
+  for (let i = 0; i < bytes.length; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+const GOOGLE_DEFAULT_FAVICON_BASE64 =
+  "iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAACXBIWXMAAAsSAAALEgHS3X78AAAC" +
+  "iElEQVQ4EaVTzU8TURCf2tJuS7tQtlRb6UKBIkQwkRRSEzkQgyEc6lkOKgcOph78Y+CgjXjDs2i4" +
+  "4FXY9AMTlQRUELZapVlouy3d7kKtb0Zr0MSLTvL2zb75eL838xtTvV6H/xELBptMJojeXLCXyobn" +
+  "yog4YhzXYvmCFi6qVSfaeRdXdrfaU1areV5KykmX06rcvzumjY/1ggkR3Jh+bNf1mr8v1D5bLuvR" +
+  "3qDgFbvbBJYIrE1mCIoCrKxsHuzK+Rzvsi29+6DEbTZz9unijEYI8ObBgXOzlcrx9OAlXyDYKUCz" +
+  "wwrDQx1wVDGg089Dt+gR3mxmhcUnaWeoxwMbm/vzDFzmDEKMMNhquRqduT1KwXiGt0vre6iSeAUH" +
+  "NDE0d26NBtAXY9BACQyjFusKuL2Ry+IPb/Y9ZglwuVscdHaknUChqLF/O4jn3V5dP4mhgRJgwSYm" +
+  "+gV0Oi3XrvYB30yvhGa7BS70eGFHPoTJyQHhMK+F0ZesRVVznvXw5Ixv7/C10moEo6OZXbWvlFAF" +
+  "9FVZDOqEABUMRIkMd8GnLwVWg9/RkJF9sA4oDfYQAuzzjqzwvnaRUFxn/X2ZlmGLXAE7AL52B4xH" +
+  "gqAUqrC1nSNuoJkQtLkdqReszz/9aRvq90NOKdOS1nch8TpL555WDp49f3uAMXhACRjD5j4ykuCt" +
+  "f5PP7Fm1b0DIsl/VHGezzP1KwOiZQobFF9YyjSRYQETRENSlVzI8iK9mWlzckpSSCQHVALmN9Az1" +
+  "euDho9Xo8vKGd2rqooA8yBcrwHgCqYR0kMkWci08t/R+W4ljDCanWTg9TJGwGNaNk3vYZ7VUdeKs" +
+  "YJGFNkfSzjXNrSX20s4/h6kB81/271ghG17l+rPTAAAAAElFTkSuQmCC";
+
+async function isDefaultFavicon(buf: ArrayBuffer): Promise<boolean> {
+  return arrayBufferToBase64(buf) === GOOGLE_DEFAULT_FAVICON_BASE64;
+}
+
+export async function orgToFavicon(org: OrgName, size = 128): Promise<OrgInfo> {
+  const qid = await wikidataQidForLabel(org.long);
   const entity: WikidataEntity = qid ? await wikidataEntity(qid) : {};
   const domain = domainFromP856(entity);
-  const favicon = domain ? faviconUrlForDomain(domain, size) : null;
-  return { name, domain, favicon };
+  let favicon: string | null = null;
+  if (domain) {
+    const url = faviconUrlForDomain(domain, size);
+    try {
+      const res = await fetch(url);
+      if (res.ok) {
+        const buf = await res.arrayBuffer();
+        if (!(await isDefaultFavicon(buf))) {
+          favicon = url;
+        }
+      }
+    } catch {
+      favicon = null;
+    }
+  }
+  return { short: org.short, long: org.long, domain, favicon };
 }
 
 export async function faviconsForArxivUrl(

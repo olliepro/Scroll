@@ -18,8 +18,12 @@ export interface ArxivEntry {
   categories: string[];
 }
 
-export interface OrgInfo {
-  name: string;
+export interface OrgName {
+  short: string;
+  long: string;
+}
+
+export interface OrgInfo extends OrgName {
   domain: string | null;
   favicon: string | null;
 }
