@@ -4,7 +4,6 @@ import { ExternalLink, FileDown, Heart, X } from "lucide-react";
 import { FaXTwitter } from "react-icons/fa6";
 import { FaRedditAlien, FaWikipediaW } from "react-icons/fa";
 import type { AltmetricCounts, ArxivEntry, OrgInfo } from "../types";
-import { CATEGORY_LABELS } from "../constants";
 import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
 import { MetricChip } from "./MetricChip";
 
@@ -34,6 +33,27 @@ export function PaperCard({
     status === "read" ? "✔" : status === "viewed" ? "●" : "○";
   const paraRef = useRef<HTMLParagraphElement | null>(null);
   const [lineClamp, setLineClamp] = useState(14);
+  const [orgOpen, setOrgOpen] = useState(false);
+  const [validFavicons, setValidFavicons] = useState<boolean[]>([]);
+
+  useEffect(() => {
+    setValidFavicons(orgs?.map(() => true) || []);
+  }, [orgs]);
+
+  function handleFaviconError(i: number) {
+    if (i < 0) return;
+    setValidFavicons((prev) => {
+      const copy = [...prev];
+      copy[i] = false;
+      return copy;
+    });
+  }
+
+  const orgsWithFavicons = (orgs || []).filter(
+    (o, i) => o.favicon && validFavicons[i]
+  );
+  const iconsToShow = orgsWithFavicons.slice(0, 5);
+  const extraCount = (orgs?.length || 0) - iconsToShow.length;
 
   useEffect(() => {
     function calcClamp() {
@@ -54,7 +74,7 @@ export function PaperCard({
       <section
         data-card="true"
         data-index={index}
-        className="h-[calc(100vh-88px-36px)] w-full snap-start relative select-none"
+        className="h-[calc(100dvh-88px-36px)] w-full snap-start relative select-none"
       >
         <div className="absolute inset-0 p-3 sm:p-6 flex justify-center">
           <motion.div
@@ -133,53 +153,63 @@ export function PaperCard({
               {entry.authors.slice(0, 6).join(", ")}
               {entry.authors.length > 6 && " et al."}
             </div>
-            {/* Categories */}
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {entry.categories.slice(0, 6).map((c) => (
-                <span
-                  key={c}
-                  className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300"
-                >
-                  {CATEGORY_LABELS[c] || c}
-                </span>
-              ))}
-            </div>
             {/* Organizations */}
             {orgs && orgs.length > 0 && (
-              <div className="mt-2 flex flex-wrap gap-1.5">
-                {orgs.map((o) =>
-                  o.domain ? (
-                    <a
+              <div className="mt-2">
+                <button
+                  onClick={() => setOrgOpen((p) => !p)}
+                  className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                >
+                  {iconsToShow.map((o) => (
+                    <img
                       key={o.name}
-                      href={`https://${o.domain}`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
-                    >
-                      {o.favicon && (
-                        <img
-                          src={o.favicon}
-                          alt=""
-                          className="h-3.5 w-3.5 rounded-sm"
-                        />
-                      )}
-                      {o.name}
-                    </a>
-                  ) : (
-                    <span
-                      key={o.name}
-                      className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
-                    >
-                      {o.favicon && (
-                        <img
-                          src={o.favicon}
-                          alt=""
-                          className="h-3.5 w-3.5 rounded-sm"
-                        />
-                      )}
-                      {o.name}
-                    </span>
-                  )
+                      src={o.favicon as string}
+                      alt=""
+                      className="h-3.5 w-3.5 rounded-sm"
+                      onError={() => handleFaviconError(orgs.indexOf(o))}
+                    />
+                  ))}
+                  {extraCount > 0 && <span>+{extraCount}</span>}
+                </button>
+                {orgOpen && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {orgs.map((o, i) =>
+                      o.domain ? (
+                        <a
+                          key={o.name}
+                          href={`https://${o.domain}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                        >
+                          {o.favicon && validFavicons[i] && (
+                            <img
+                              src={o.favicon}
+                              alt=""
+                              className="h-3.5 w-3.5 rounded-sm"
+                              onError={() => handleFaviconError(i)}
+                            />
+                          )}
+                          {o.name}
+                        </a>
+                      ) : (
+                        <span
+                          key={o.name}
+                          className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                        >
+                          {o.favicon && validFavicons[i] && (
+                            <img
+                              src={o.favicon}
+                              alt=""
+                              className="h-3.5 w-3.5 rounded-sm"
+                              onError={() => handleFaviconError(i)}
+                            />
+                          )}
+                          {o.name}
+                        </span>
+                      ),
+                    )}
+                  </div>
                 )}
               </div>
             )}
@@ -252,13 +282,13 @@ export function PaperCard({
       </div>
     </section>
     {showFull && (
-      <div className="fixed inset-0 z-50 bg-black/60 flex justify-end">
+      <div className="fixed inset-x-0 top-0 h-[100dvh] z-50 bg-black/60 flex justify-end">
         <motion.div
           initial={{ x: "100%" }}
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", stiffness: 260, damping: 30 }}
-          className="h-full w-full max-w-md bg-slate-950 p-6 overflow-y-auto"
+          className="h-full max-h-[100dvh] w-full max-w-md bg-slate-950 p-6 overflow-y-auto"
         >
           <button
             className="mb-4 ml-auto rounded-md p-1 hover:bg-white/10"
