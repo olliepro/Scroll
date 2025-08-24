@@ -28,7 +28,7 @@ export async function fetchAuthorTextFromArxivHtml(
   url: string,
   maxBytes = DEFAULT_MAX_BYTES,
 ): Promise<string> {
-  const exportUrl = url.replace(/^https:\/\/arxiv.org/, "https://export.arxiv.org");
+  const exportUrl = url.replace(/^https?:\/\/arxiv.org/, "https://export.arxiv.org");
   const res = await fetch(exportUrl);
   let prefix: string;
   const reader = res.body?.getReader();
