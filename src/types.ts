@@ -18,6 +18,12 @@ export interface ArxivEntry {
   categories: string[];
 }
 
+export interface OrgInfo {
+  name: string;
+  domain: string | null;
+  favicon: string | null;
+}
+
 export interface AltmetricCounts {
   cited_by_tweeters_count?: number;
   cited_by_rdts_count?: number;

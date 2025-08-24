@@ -3,8 +3,7 @@ import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart, X } from "lucide-react";
 import { FaXTwitter } from "react-icons/fa6";
 import { FaRedditAlien, FaWikipediaW } from "react-icons/fa";
-import type { AltmetricCounts, ArxivEntry } from "../types";
-import { CATEGORY_LABELS } from "../constants";
+import type { AltmetricCounts, ArxivEntry, OrgInfo } from "../types";
 import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
 import { MetricChip } from "./MetricChip";
 
@@ -17,6 +16,7 @@ export function PaperCard({
   altStatus,
   status,
   onMarkRead,
+  orgs,
 }: {
   entry: ArxivEntry;
   index: number;
@@ -26,12 +26,20 @@ export function PaperCard({
   altStatus: number | undefined;
   status: "unviewed" | "viewed" | "read";
   onMarkRead: () => void;
+  orgs?: OrgInfo[];
 }) {
   const [showFull, setShowFull] = useState(false);
   const statusSymbol =
     status === "read" ? "✔" : status === "viewed" ? "●" : "○";
   const paraRef = useRef<HTMLParagraphElement | null>(null);
   const [lineClamp, setLineClamp] = useState(14);
+  const [orgsOpen, setOrgsOpen] = useState(false);
+  const orgIcons = orgs?.filter((o) => o.favicon) ?? [];
+  const shouldCollapse = !!orgs && orgs.length > 2;
+  const orgExtra = shouldCollapse
+    ? orgs.length - (orgIcons.length > 0 ? Math.min(5, orgIcons.length) : 1)
+    : 0;
+  const seeMoreRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function calcClamp() {
@@ -39,20 +47,34 @@ export function PaperCard({
       if (!p) return;
       const parent = p.parentElement;
       if (!parent) return;
-      const available = parent.clientHeight - p.offsetTop - 100;
+      const seeMore = seeMoreRef.current;
+      const reserve = (seeMore?.offsetHeight || 0) + 4;
+      const available = parent.clientHeight - p.offsetTop - reserve;
       const lh = parseFloat(getComputedStyle(p).lineHeight || "16");
       if (lh > 0) setLineClamp(Math.max(3, Math.floor(available / lh)));
     }
     calcClamp();
     window.addEventListener("resize", calcClamp);
     return () => window.removeEventListener("resize", calcClamp);
-  }, [entry.summary]);
+  }, [entry.summary, orgsOpen]);
+
+  useEffect(() => {
+    if (showFull) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [showFull]);
   return (
     <>
       <section
         data-card="true"
         data-index={index}
-        className="h-[calc(100vh-88px-36px)] w-full snap-start relative select-none"
+        className="w-full snap-start relative select-none"
+        style={{ height: "calc(var(--vh, 1vh) * 100 - 124px)" }}
       >
         <div className="absolute inset-0 p-3 sm:p-6 flex justify-center">
           <motion.div
@@ -122,7 +144,7 @@ export function PaperCard({
           </div>
 
           {/* Title + Authors */}
-          <div className="px-4 pt-4 pb-2 flex-1 overflow-hidden">
+          <div className="px-4 pt-4 pb-0 flex-1 overflow-hidden">
             <h2
               className="text-xl sm:text-2xl font-semibold leading-snug text-white"
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
@@ -131,17 +153,115 @@ export function PaperCard({
               {entry.authors.slice(0, 6).join(", ")}
               {entry.authors.length > 6 && " et al."}
             </div>
-            {/* Categories */}
-            <div className="mt-2 flex flex-wrap gap-1.5">
-              {entry.categories.slice(0, 6).map((c) => (
-                <span
-                  key={c}
-                  className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300"
-                >
-                  {CATEGORY_LABELS[c] || c}
-                </span>
-              ))}
-            </div>
+            {/* Organizations */}
+            {orgs && orgs.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {shouldCollapse ? (
+                  orgsOpen ? (
+                    <>
+                      {orgs.map((o) =>
+                        o.domain ? (
+                          <a
+                            key={o.name}
+                            href={`https://${o.domain}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                          >
+                            {o.favicon && (
+                              <img
+                                src={o.favicon}
+                                alt=""
+                                className="h-3.5 w-3.5 rounded-sm"
+                              />
+                            )}
+                            {o.name}
+                          </a>
+                        ) : (
+                          <span
+                            key={o.name}
+                            className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                          >
+                            {o.favicon && (
+                              <img
+                                src={o.favicon}
+                                alt=""
+                                className="h-3.5 w-3.5 rounded-sm"
+                              />
+                            )}
+                            {o.name}
+                          </span>
+                        ),
+                      )}
+                      <button
+                        onClick={() => setOrgsOpen(false)}
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </>
+                  ) : (
+                    <button
+                      onClick={() => setOrgsOpen(true)}
+                      className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 flex items-center gap-1"
+                    >
+                      {orgIcons.length > 0 ? (
+                        orgIcons.slice(0, 5).map((o) => (
+                          <img
+                            key={o.name}
+                            src={o.favicon!}
+                            alt=""
+                            className="h-3.5 w-3.5 rounded-sm"
+                          />
+                        ))
+                      ) : (
+                        <span className="text-[11px] text-zinc-300">
+                          {orgs[0].name}
+                        </span>
+                      )}
+                      {orgExtra > 0 && (
+                        <span className="text-[11px] text-zinc-300">+{orgExtra}</span>
+                      )}
+                    </button>
+                  )
+                ) : (
+                  orgs.map((o) =>
+                    o.domain ? (
+                      <a
+                        key={o.name}
+                        href={`https://${o.domain}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                      >
+                        {o.favicon && (
+                          <img
+                            src={o.favicon}
+                            alt=""
+                            className="h-3.5 w-3.5 rounded-sm"
+                          />
+                        )}
+                        {o.name}
+                      </a>
+                    ) : (
+                      <span
+                        key={o.name}
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                      >
+                        {o.favicon && (
+                          <img
+                            src={o.favicon}
+                            alt=""
+                            className="h-3.5 w-3.5 rounded-sm"
+                          />
+                        )}
+                        {o.name}
+                      </span>
+                    ),
+                  )
+                )}
+              </div>
+            )}
             {/* Abstract */}
             <p
               ref={paraRef}
@@ -155,18 +275,19 @@ export function PaperCard({
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
             />
             <button
+              ref={seeMoreRef}
               onClick={() => {
                 setShowFull(true);
                 onMarkRead();
               }}
-              className="mt-2 text-xs text-fuchsia-300 hover:underline"
+              className="mt-0.5 text-xs text-fuchsia-300 hover:underline"
             >
               See more
             </button>
           </div>
 
           {/* Bottom metrics bar */}
-          <div className="mt-auto p-3 sm:p-4 border-t border-white/5 bg-gradient-to-r from-black/40 via-slate-900/40 to-black/40 backdrop-blur">
+          <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-black/40 via-slate-900/40 to-black/40 backdrop-blur">
             <div className="flex items-center gap-3">
               {altCounts?.cited_by_tweeters_count &&
                 altCounts.cited_by_tweeters_count > 1 && (
@@ -211,13 +332,21 @@ export function PaperCard({
       </div>
     </section>
     {showFull && (
-      <div className="fixed inset-0 z-50 bg-black/60 flex justify-end">
+      <div
+        className="fixed inset-0 z-50 bg-black/60 flex justify-end overflow-hidden"
+        style={{ height: "calc(var(--vh, 1vh) * 100)" }}
+        onWheel={(e) => e.stopPropagation()}
+        onTouchStart={(e) => e.stopPropagation()}
+        onTouchMove={(e) => e.stopPropagation()}
+        onTouchEnd={(e) => e.stopPropagation()}
+      >
         <motion.div
           initial={{ x: "100%" }}
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", stiffness: 260, damping: 30 }}
-          className="h-full w-full max-w-md bg-slate-950 p-6 overflow-y-auto"
+          className="w-full max-w-md bg-slate-950 p-6 overflow-y-auto"
+          style={{ height: "calc(var(--vh, 1vh) * 100)" }}
         >
           <button
             className="mb-4 ml-auto rounded-md p-1 hover:bg-white/10"
