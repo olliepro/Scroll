@@ -84,6 +84,17 @@ export default function ScrollApp() {
     categories: [],
   });
 
+  useEffect(() => {
+    if (adding) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [adding]);
+
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const scrollLock = useRef(false);
@@ -112,6 +123,18 @@ export default function ScrollApp() {
     ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 
   const SCROLL_LOCK_MS = 275;
+
+  useEffect(() => {
+    const setVh = () => {
+      document.documentElement.style.setProperty(
+        "--vh",
+        `${window.innerHeight * 0.01}px`,
+      );
+    };
+    setVh();
+    window.addEventListener("resize", setVh);
+    return () => window.removeEventListener("resize", setVh);
+  }, []);
 
   const scrollToIndex = useCallback(
     (idx: number) => {
@@ -339,6 +362,7 @@ export default function ScrollApp() {
     if (!el) return;
 
     function onWheel(e: WheelEvent) {
+      if (document.body.style.overflow === "hidden") return;
       if (scrollLock.current) return e.preventDefault();
       if (Math.abs(e.deltaY) < 5) return; // ignore tiny
       e.preventDefault();
@@ -347,12 +371,15 @@ export default function ScrollApp() {
     }
 
     function onTouchStart(e: TouchEvent) {
+      if (document.body.style.overflow === "hidden") return;
       touchStartY.current = e.touches[0]?.clientY ?? null;
     }
     function onTouchMove(e: TouchEvent) {
+      if (document.body.style.overflow === "hidden") return;
       if (touchStartY.current !== null) e.preventDefault(); // block momentum
     }
     function onTouchEnd(e: TouchEvent) {
+      if (document.body.style.overflow === "hidden") return;
       if (scrollLock.current) return;
       const startY = touchStartY.current;
       const endY = e.changedTouches[0]?.clientY ?? startY;
@@ -365,9 +392,15 @@ export default function ScrollApp() {
     }
 
     function onKeyDown(e: KeyboardEvent) {
+      if (document.body.style.overflow === "hidden") return;
       if (scrollLock.current) return;
       const tag = (e.target as HTMLElement).tagName;
-      if (tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable) return;
+      if (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        (e.target as HTMLElement).isContentEditable
+      )
+        return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
         scrollToIndex(pageIndex + 1);
@@ -476,14 +509,20 @@ export default function ScrollApp() {
 
   const visibleEntries = useMemo(() => entries || [], [entries]);
 
-  const firstUnreadIndex = useMemo(
+  const firstUnseenIndex = useMemo(
     () =>
-      visibleEntries.findIndex((e) => statuses[e.arxivId] !== "read"),
+      visibleEntries.findIndex(
+        (e) =>
+          statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
+      ),
     [visibleEntries, statuses]
   );
 
     return (
-      <div className="h-screen w-full text-zinc-100 flex flex-col overflow-hidden relative">
+      <div
+        className="w-full text-zinc-100 flex flex-col overflow-hidden relative"
+        style={{ height: "calc(var(--vh, 1vh) * 100)" }}
+      >
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(139,92,246,0.2)_0%,_transparent_60%),radial-gradient(ellipse_at_bottom_right,_rgba(56,189,248,0.15)_0%,_transparent_60%)]" />
         {/* Top bar */}
         <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
@@ -679,11 +718,13 @@ export default function ScrollApp() {
       {/* Create Channel modal */}
       {adding && (
         <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden"
+          style={{ height: "calc(var(--vh, 1vh) * 100)" }}
           onClick={() => setAdding(false)}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4"
+            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4 overflow-y-auto"
+            style={{ maxHeight: "calc(var(--vh, 1vh) * 100)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-lg font-semibold">Create a Channel</div>
@@ -825,12 +866,12 @@ export default function ScrollApp() {
         )}
       </div>
 
-      {firstUnreadIndex >= 0 && firstUnreadIndex !== pageIndex && (
+      {firstUnseenIndex >= 0 && firstUnseenIndex !== pageIndex && (
         <button
           className="fixed bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-fuchsia-600 hover:bg-fuchsia-700 text-sm shadow-lg"
-          onClick={() => scrollToIndex(firstUnreadIndex)}
+          onClick={() => scrollToIndex(firstUnseenIndex)}
         >
-          Jump to latest unread
+          Jump to latest unseen
         </button>
       )}
 
