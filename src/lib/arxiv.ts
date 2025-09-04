@@ -13,8 +13,12 @@ function buildArxivQuery(ch: Channel) {
         .join(" AND ")})`
     : "";
 
+  const authorClause = ch.author?.trim()
+    ? `(au:"${ch.author.trim()}")`
+    : "";
+
   const raw =
-    [catClause, kwClause].filter(Boolean).join(" AND ") ||
+    [catClause, kwClause, authorClause].filter(Boolean).join(" AND ") ||
     `all:"machine learning"`;
 
   const params = new URLSearchParams({
@@ -28,16 +32,12 @@ function buildArxivQuery(ch: Channel) {
   return `https://export.arxiv.org/api/query?${params.toString()}`;
 }
 
-export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
-  const url = buildArxivQuery(channel);
-  const res = await fetch(url);
-  const text = await res.text();
-
+function parseArxivFeed(text: string): ArxivEntry[] {
   const parser = new DOMParser();
   const xml = parser.parseFromString(text, "application/xml");
   const entries = Array.from(xml.getElementsByTagName("entry"));
 
-  const out: ArxivEntry[] = entries.map((e) => {
+  return entries.map((e) => {
     const id = e.getElementsByTagName("id")[0]?.textContent || "";
     const arxivId = extractArxivIdFromAbsUrl(id) || id;
     const title =
@@ -74,6 +74,47 @@ export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
       categories,
     };
   });
+}
 
-  return out;
+export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
+  const url = buildArxivQuery(channel);
+  const res = await fetch(url);
+  const text = await res.text();
+  return parseArxivFeed(text);
+}
+
+export async function searchArxiv(
+  query: string,
+  maxResults = 5
+): Promise<ArxivEntry[]> {
+  const trimmed = query
+    .trim()
+    .replace(/^arXiv:/i, "")
+    .replace(/^https?:\/\/(?:www\.)?arxiv\.org\/abs\//i, "")
+    .replace(/^https?:\/\/doi\.org\//i, "");
+
+  const isDoi = /^10\.\d{4,9}\/\S+$/i.test(trimmed);
+  const isArxivId =
+    /^\d{4}\.\d{4,5}(v\d+)?$/i.test(trimmed) ||
+    /^[a-z-]+\/\d{7}(v\d+)?$/i.test(trimmed);
+
+  const clause = isDoi
+    ? `doi:"${trimmed}"`
+    : isArxivId
+      ? `id:${trimmed}`
+      : `ti:${trimmed.replace(/[()]/g, "")}`;
+
+  const params = new URLSearchParams({
+    search_query: clause,
+    start: "0",
+    max_results: String(maxResults),
+    sortBy: isArxivId ? "submittedDate" : "relevance",
+    sortOrder: "descending",
+  });
+
+  const res = await fetch(
+    `https://export.arxiv.org/api/query?${params.toString()}`
+  );
+  const text = await res.text();
+  return parseArxivFeed(text);
 }

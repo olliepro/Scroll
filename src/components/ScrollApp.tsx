@@ -1,8 +1,18 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Loader2, Plus, Trash2, Bookmark } from "lucide-react";
-import { fetchArxiv } from "../lib/arxiv";
+import {
+  Loader2,
+  Plus,
+  Trash2,
+  Bookmark,
+  Search,
+  ChevronDown,
+  ExternalLink,
+  FileDown,
+  Heart,
+} from "lucide-react";
+import { fetchArxiv, searchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
-import { clsx, tokenizeKeywords } from "../lib/utils";
+import { clsx, tokenizeKeywords, renderLaTeX } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { faviconsForArxivUrl } from "../lib/affiliations";
 import {
@@ -77,15 +87,23 @@ export default function ScrollApp() {
   }, [rateLimitHoldUntil]);
 
   const [adding, setAdding] = useState(false);
+  const [searching, setSearching] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [newChannel, setNewChannel] = useState<Channel>({
     id: "",
     name: "",
     keywords: "",
     categories: [],
+    author: "",
+    maxResults: 40,
   });
+  const [searchInput, setSearchInput] = useState("");
+  const [searchResults, setSearchResults] = useState<ArxivEntry[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (adding) {
+    if (adding || searching) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -93,7 +111,7 @@ export default function ScrollApp() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [adding]);
+  }, [adding, searching]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
@@ -480,6 +498,20 @@ export default function ScrollApp() {
     setStatuses((p) => ({ ...p, [id]: "read" }));
   }
 
+  async function performSearch() {
+    if (!searchInput.trim()) return;
+    setSearchLoading(true);
+    setSearchError(null);
+    try {
+      const res = await searchArxiv(searchInput.trim());
+      setSearchResults(res);
+    } catch (e) {
+      setSearchError(String(e));
+    } finally {
+      setSearchLoading(false);
+    }
+  }
+
   function addChannel(ch: Omit<Channel, "id">) {
     const id =
       ch.name.toLowerCase().replace(/\s+/g, "-") +
@@ -489,7 +521,15 @@ export default function ScrollApp() {
     setChannels((prev) => [newCh, ...prev]);
     setActiveId(id);
     setAdding(false);
-    setNewChannel({ id: "", name: "", keywords: "", categories: [] });
+    setNewChannel({
+      id: "",
+      name: "",
+      keywords: "",
+      categories: [],
+      author: "",
+      maxResults: 40,
+    });
+    setCategoriesOpen(false);
   }
 
   function removeChannel(id: string) {
@@ -544,6 +584,12 @@ export default function ScrollApp() {
                 API Key
               </button>
               <button
+                onClick={() => setSearching(true)}
+                className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1"
+              >
+                <Search className="h-3.5 w-3.5" /> Search
+              </button>
+              <button
                 onClick={() => setAdding(true)}
                 className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
               >
@@ -577,7 +623,7 @@ export default function ScrollApp() {
                     if (longPressTriggered.current) return;
                     setActiveId(ch.id);
                   }}
-                  title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"} | Categories: ${ch.categories.join(", ") || "—"}`}
+                  title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"} | Categories: ${ch.categories.join(", ") || "—"} | Author: ${ch.author || "—"}`}
                   className="text-sm whitespace-nowrap"
                 >
                   {ch.name}
@@ -710,12 +756,113 @@ export default function ScrollApp() {
         </div>
       )}
 
+      {searching && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
+          onClick={() => {
+            setSearching(false);
+            setSearchInput("");
+            setSearchResults([]);
+            setSearchError(null);
+            setSearchLoading(false);
+          }}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 text-white p-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold mb-2">Search Papers</div>
+            <div className="flex gap-2">
+              <input
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && performSearch()}
+                placeholder="Title or DOI"
+                className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+              />
+              <button
+                onClick={performSearch}
+                disabled={!searchInput.trim() || searchLoading}
+                className="px-3 py-2 rounded-md bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-sm disabled:opacity-50"
+              >
+                {searchLoading ? "Searching..." : "Search"}
+              </button>
+            </div>
+            {searchError && (
+              <div className="text-sm text-red-500 mt-2">{searchError}</div>
+            )}
+            <div className="mt-4 space-y-4">
+              {searchResults.map((e) => (
+                <div
+                  key={e.id}
+                  className="p-3 rounded-xl border border-white/10 bg-white/5"
+                >
+                  <div
+                    className="font-semibold"
+                    dangerouslySetInnerHTML={{
+                      __html: renderLaTeX(e.title),
+                    }}
+                  />
+                  <div className="text-sm text-zinc-400">
+                    {e.authors.join(", ")}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <a
+                      href={e.link}
+                      target="_blank"
+                      rel="noreferrer"
+                      onClick={() => markRead(e.arxivId)}
+                      className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" /> Open
+                    </a>
+                    {e.pdfUrl && (
+                      <a
+                        href={e.pdfUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => markRead(e.arxivId)}
+                        className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1"
+                      >
+                        <FileDown className="h-3.5 w-3.5" /> PDF
+                      </a>
+                    )}
+                    <button
+                      onClick={() => openSaveMenu(e)}
+                      className={clsx(
+                        "px-2 py-1 text-xs rounded-full border flex items-center gap-1",
+                        isSaved(e.arxivId)
+                          ? "bg-fuchsia-600/20 border-fuchsia-500 text-fuchsia-200"
+                          : "bg-white/5 hover:bg-white/10 border-white/10"
+                      )}
+                    >
+                      {isSaved(e.arxivId) ? (
+                        <Heart className="h-3.5 w-3.5 fill-fuchsia-500 text-fuchsia-500" />
+                      ) : (
+                        <Heart className="h-3.5 w-3.5" />
+                      )}
+                      {isSaved(e.arxivId) ? "Saved" : "Save"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {searchResults.length === 0 && !searchLoading && searchInput && (
+                <div className="text-sm text-zinc-400">No results</div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create Channel modal */}
       {adding && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden"
           style={{ height: "calc(var(--vh, 1vh) * 100)" }}
-          onClick={() => setAdding(false)}
+          onClick={() => {
+            setAdding(false);
+            setCategoriesOpen(false);
+          }}
         >
           <div
             className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4 overflow-y-auto"
@@ -758,40 +905,88 @@ export default function ScrollApp() {
               </div>
 
               <div>
-                <label className="text-sm text-zinc-300">Categories</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {Object.entries(CATEGORY_LABELS).map(([code, label]) => {
-                    const active = newChannel.categories.includes(code);
-                    return (
-                      <button
-                        key={code}
-                        onClick={() =>
-                          setNewChannel((p) => ({
-                            ...p,
-                            categories: active
-                              ? p.categories.filter((c) => c !== code)
-                              : [...p.categories, code],
-                          }))
-                        }
-                        className={clsx(
-                          "px-2.5 py-1 rounded-full text-xs border",
-                          active
-                            ? "bg-fuchsia-600/30 border-fuchsia-500 text-fuchsia-200"
-                            : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10"
-                        )}
-                      >
-                        {label}
-                        <span className="opacity-60 ml-1">({code})</span>
-                      </button>
-                    );
-                  })}
+                <label className="text-sm text-zinc-300">Author</label>
+                <input
+                  value={newChannel.author ?? ""}
+                  onChange={(e) =>
+                    setNewChannel((p) => ({ ...p, author: e.target.value }))
+                  }
+                  placeholder="First Last"
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                />
+                <div className="text-[11px] text-zinc-400 mt-1">
+                  Example: <code>Yann LeCun</code>
                 </div>
               </div>
 
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setCategoriesOpen((o) => !o)}
+                  className="flex items-center justify-between w-full text-sm text-zinc-300"
+                >
+                  Categories
+                  <ChevronDown
+                    className={clsx(
+                      "h-4 w-4 transition-transform",
+                      categoriesOpen && "rotate-180"
+                    )}
+                  />
+                </button>
+                {categoriesOpen && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {Object.entries(CATEGORY_LABELS).map(([code, label]) => {
+                      const active = newChannel.categories.includes(code);
+                      return (
+                        <button
+                          key={code}
+                          onClick={() =>
+                            setNewChannel((p) => ({
+                              ...p,
+                              categories: active
+                                ? p.categories.filter((c) => c !== code)
+                                : [...p.categories, code],
+                            }))
+                          }
+                          className={clsx(
+                            "px-2.5 py-1 rounded-full text-xs border",
+                            active
+                              ? "bg-fuchsia-600/30 border-fuchsia-500 text-fuchsia-200"
+                              : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10",
+                          )}
+                        >
+                          {label}
+                          <span className="opacity-60 ml-1">({code})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="text-sm text-zinc-300">Items in feed</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={newChannel.maxResults}
+                  onChange={(e) =>
+                    setNewChannel((p) => ({
+                      ...p,
+                      maxResults: Number(e.target.value),
+                    }))
+                  }
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                />
+              </div>
               <div className="flex justify-end gap-2 pt-2">
                 <button
                   className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10"
-                  onClick={() => setAdding(false)}
+                  onClick={() => {
+                    setAdding(false);
+                    setCategoriesOpen(false);
+                  }}
                 >
                   Cancel
                 </button>
@@ -801,14 +996,15 @@ export default function ScrollApp() {
                     "px-3 py-1.5 rounded-md",
                     newChannel.name.trim()
                       ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600 shadow-lg shadow-fuchsia-500/20"
-                      : "bg-white/10 text-white/50"
+                      : "bg-white/10 text-white/50",
                   )}
                   onClick={() =>
                     addChannel({
                       name: newChannel.name.trim(),
                       keywords: newChannel.keywords.trim(),
                       categories: newChannel.categories,
-                      maxResults: 40,
+                      author: newChannel.author?.trim() || undefined,
+                      maxResults: newChannel.maxResults,
                     })
                   }
                 >
