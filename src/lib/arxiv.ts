@@ -87,18 +87,31 @@ export async function searchArxiv(
   query: string,
   maxResults = 5
 ): Promise<ArxivEntry[]> {
-  const trimmed = query.trim();
+  const trimmed = query
+    .trim()
+    .replace(/^arXiv:/i, "")
+    .replace(/^https?:\/\/(?:www\.)?arxiv\.org\/abs\//i, "")
+    .replace(/^https?:\/\/doi\.org\//i, "");
+
   const isDoi = /^10\.\d{4,9}\/\S+$/i.test(trimmed);
+  const isArxivId =
+    /^\d{4}\.\d{4,5}(v\d+)?$/i.test(trimmed) ||
+    /^[a-z-]+\/\d{7}(v\d+)?$/i.test(trimmed);
+
   const clause = isDoi
     ? `doi:"${trimmed}"`
-    : `ti:${trimmed.replace(/[()]/g, "")}`;
+    : isArxivId
+      ? `id:${trimmed}`
+      : `ti:${trimmed.replace(/[()]/g, "")}`;
+
   const params = new URLSearchParams({
     search_query: clause,
     start: "0",
     max_results: String(maxResults),
-    sortBy: "relevance",
+    sortBy: isArxivId ? "submittedDate" : "relevance",
     sortOrder: "descending",
   });
+
   const res = await fetch(
     `https://export.arxiv.org/api/query?${params.toString()}`
   );
