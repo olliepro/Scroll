@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
-import { Loader2, Plus, Trash2, Bookmark } from "lucide-react";
-import { fetchArxiv } from "../lib/arxiv";
+import {
+  Loader2,
+  Plus,
+  Trash2,
+  Bookmark,
+  Search as SearchIcon,
+  ChevronRight,
+} from "lucide-react";
+import { fetchArxiv, searchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
@@ -82,18 +89,18 @@ export default function ScrollApp() {
     name: "",
     keywords: "",
     categories: [],
+    author: "",
+    maxResults: 40,
   });
 
-  useEffect(() => {
-    if (adding) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "";
-    }
-    return () => {
-      document.body.style.overflow = "";
-    };
-  }, [adding]);
+  const [showCategories, setShowCategories] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [searchResults, setSearchResults] = useState<ArxivEntry[] | null>(
+    null
+  );
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchError, setSearchError] = useState<string | null>(null);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
@@ -117,6 +124,17 @@ export default function ScrollApp() {
 
   const [saveTarget, setSaveTarget] = useState<ArxivEntry | null>(null);
   const [newListName, setNewListName] = useState("");
+
+  useEffect(() => {
+    if (adding || saveTarget || searchOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [adding, saveTarget, searchOpen]);
 
   const isTouchDevice =
     typeof window !== "undefined" &&
@@ -489,7 +507,15 @@ export default function ScrollApp() {
     setChannels((prev) => [newCh, ...prev]);
     setActiveId(id);
     setAdding(false);
-    setNewChannel({ id: "", name: "", keywords: "", categories: [] });
+    setShowCategories(false);
+    setNewChannel({
+      id: "",
+      name: "",
+      keywords: "",
+      categories: [],
+      author: "",
+      maxResults: 40,
+    });
   }
 
   function removeChannel(id: string) {
@@ -500,6 +526,25 @@ export default function ScrollApp() {
   function removeList(id: string) {
     setSavedLists((prev) => prev.filter((l) => l.id !== id));
     if (activeId === `list:${id}`) setActiveId(channels[0]?.id || "");
+  }
+
+  async function runSearch() {
+    if (!searchTerm.trim()) return;
+    setSearchLoading(true);
+    setSearchError(null);
+    try {
+      const term = searchTerm.trim();
+      const raw =
+        term.startsWith("10.") || term.includes("/")
+          ? `doi:"${term}"`
+          : `ti:"${term}"`;
+      const res = await searchArxiv(raw, 20);
+      setSearchResults(res);
+    } catch {
+      setSearchError("Search failed");
+    } finally {
+      setSearchLoading(false);
+    }
   }
 
   const visibleEntries = useMemo(() => entries || [], [entries]);
@@ -538,13 +583,29 @@ export default function ScrollApp() {
             </div>
             <div className="ml-auto flex items-center gap-2">
               <button
+                onClick={() => {
+                  setSearchTerm("");
+                  setSearchResults(null);
+                  setSearchError(null);
+                  setSearchOpen(true);
+                }}
+                className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10"
+              >
+                <span className="inline-flex items-center gap-1">
+                  <SearchIcon className="h-4 w-4" /> Search
+                </span>
+              </button>
+              <button
                 onClick={promptApiKey}
                 className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10"
               >
                 API Key
               </button>
               <button
-                onClick={() => setAdding(true)}
+                onClick={() => {
+                  setShowCategories(false);
+                  setAdding(true);
+                }}
                 className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
               >
                 <span className="inline-flex items-center gap-1">
@@ -715,7 +776,10 @@ export default function ScrollApp() {
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden"
           style={{ height: "calc(var(--vh, 1vh) * 100)" }}
-          onClick={() => setAdding(false)}
+          onClick={() => {
+            setAdding(false);
+            setShowCategories(false);
+          }}
         >
           <div
             className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4 overflow-y-auto"
@@ -758,63 +822,172 @@ export default function ScrollApp() {
               </div>
 
               <div>
-                <label className="text-sm text-zinc-300">Categories</label>
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {Object.entries(CATEGORY_LABELS).map(([code, label]) => {
-                    const active = newChannel.categories.includes(code);
-                    return (
-                      <button
-                        key={code}
-                        onClick={() =>
-                          setNewChannel((p) => ({
-                            ...p,
-                            categories: active
-                              ? p.categories.filter((c) => c !== code)
-                              : [...p.categories, code],
-                          }))
-                        }
-                        className={clsx(
-                          "px-2.5 py-1 rounded-full text-xs border",
-                          active
-                            ? "bg-fuchsia-600/30 border-fuchsia-500 text-fuchsia-200"
-                            : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10"
-                        )}
-                      >
-                        {label}
-                        <span className="opacity-60 ml-1">({code})</span>
-                      </button>
-                    );
-                  })}
+                <label className="text-sm text-zinc-300">Author</label>
+                <input
+                  value={newChannel.author}
+                  onChange={(e) =>
+                    setNewChannel((p) => ({ ...p, author: e.target.value }))
+                  }
+                  placeholder="First Last"
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                />
+                <div className="text-[11px] text-zinc-400 mt-1">
+                  Example: <code>Andrew Ng</code>
                 </div>
               </div>
 
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10"
-                  onClick={() => setAdding(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={!newChannel.name.trim()}
-                  className={clsx(
-                    "px-3 py-1.5 rounded-md",
-                    newChannel.name.trim()
-                      ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600 shadow-lg shadow-fuchsia-500/20"
-                      : "bg-white/10 text-white/50"
-                  )}
-                  onClick={() =>
-                    addChannel({
-                      name: newChannel.name.trim(),
-                      keywords: newChannel.keywords.trim(),
-                      categories: newChannel.categories,
-                      maxResults: 40,
-                    })
+              <div>
+                <label className="text-sm text-zinc-300">Results Limit</label>
+                <input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={newChannel.maxResults}
+                  onChange={(e) =>
+                    setNewChannel((p) => ({
+                      ...p,
+                      maxResults: Number(e.target.value),
+                    }))
                   }
-                >
-                  Create
-                </button>
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                />
               </div>
+
+              <div>
+                <button
+                  onClick={() => setShowCategories((v) => !v)}
+                  className="flex items-center text-sm text-zinc-300"
+                >
+                  <ChevronRight
+                    className={clsx(
+                      "h-4 w-4 mr-1 transition-transform",
+                      showCategories && "rotate-90"
+                    )}
+                  />
+                  Categories
+                </button>
+                {showCategories && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {Object.entries(CATEGORY_LABELS).map(([code, label]) => {
+                      const active = newChannel.categories.includes(code);
+                      return (
+                        <button
+                          key={code}
+                          onClick={() =>
+                            setNewChannel((p) => ({
+                              ...p,
+                              categories: active
+                                ? p.categories.filter((c) => c !== code)
+                                : [...p.categories, code],
+                            }))
+                          }
+                          className={clsx(
+                            "px-2.5 py-1 rounded-full text-xs border",
+                            active
+                              ? "bg-fuchsia-600/30 border-fuchsia-500 text-fuchsia-200"
+                              : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10",
+                          )}
+                        >
+                          {label}
+                          <span className="opacity-60 ml-1">({code})</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10"
+                    onClick={() => {
+                      setAdding(false);
+                      setShowCategories(false);
+                    }}
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    disabled={!newChannel.name.trim()}
+                    className={clsx(
+                      "px-3 py-1.5 rounded-md",
+                      newChannel.name.trim()
+                        ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600 shadow-lg shadow-fuchsia-500/20"
+                        : "bg-white/10 text-white/50",
+                    )}
+                    onClick={() =>
+                      addChannel({
+                        name: newChannel.name.trim(),
+                        keywords: newChannel.keywords.trim(),
+                        categories: newChannel.categories,
+                        author: newChannel.author.trim(),
+                        maxResults: newChannel.maxResults,
+                      })
+                    }
+                  >
+                    Create
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+      {searchOpen && (
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden"
+          style={{ height: "calc(var(--vh, 1vh) * 100)" }}
+          onClick={() => setSearchOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4 overflow-y-auto"
+            style={{ maxHeight: "calc(var(--vh, 1vh) * 100)" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold mb-2">Search Papers</div>
+            <div className="flex gap-2">
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") runSearch();
+                }}
+                placeholder="Title or DOI"
+                className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+              />
+              <button
+                onClick={runSearch}
+                disabled={searchLoading || !searchTerm.trim()}
+                className="px-3 py-2 rounded-md bg-gradient-to-r from-fuchsia-600 to-indigo-600 disabled:opacity-50"
+              >
+                {searchLoading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  "Search"
+                )}
+              </button>
+            </div>
+            {searchError && (
+              <div className="text-sm text-red-400 mt-2">{searchError}</div>
+            )}
+            <div className="mt-4 space-y-4">
+              {searchResults?.map((e, idx) => (
+                <PaperCard
+                  key={e.id}
+                  entry={e}
+                  index={idx}
+                  saved={isSaved(e.arxivId)}
+                  onToggleSave={() => openSaveMenu(e)}
+                  altCounts={altCache[e.arxivId]?.counts}
+                  altStatus={altCache[e.arxivId]?.status}
+                  status="unviewed"
+                  onMarkRead={() => {}}
+                  orgs={orgCache[e.arxivId]}
+                />
+              ))}
+              {searchResults && searchResults.length === 0 && (
+                <div className="text-sm text-zinc-400">No results.</div>
+              )}
             </div>
           </div>
         </div>
