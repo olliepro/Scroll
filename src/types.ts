@@ -3,6 +3,7 @@ export interface Channel {
   name: string;
   keywords: string; // stored serialized; edited via chips input
   categories: string[];
+  author?: string;
   maxResults?: number;
 }
 
