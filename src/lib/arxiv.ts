@@ -1,7 +1,8 @@
 import type { Channel, ArxivEntry } from "../types";
 import { extractArxivIdFromAbsUrl, tokenizeKeywords } from "./utils";
+import { buildArxivRequestUrl } from "./arxivProxy";
 
-function buildArxivQuery(ch: Channel) {
+function buildArxivQuery(ch: Channel): URLSearchParams {
   const catClause = ch.categories?.length
     ? `(${ch.categories.map((c) => `cat:${c}`).join(" OR ")})`
     : "";
@@ -29,7 +30,7 @@ function buildArxivQuery(ch: Channel) {
     sortOrder: "descending",
   });
 
-  return `https://export.arxiv.org/api/query?${params.toString()}`;
+  return params;
 }
 
 function parseArxivFeed(text: string): ArxivEntry[] {
@@ -77,7 +78,8 @@ function parseArxivFeed(text: string): ArxivEntry[] {
 }
 
 export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
-  const url = buildArxivQuery(channel);
+  const params = buildArxivQuery(channel);
+  const url = buildArxivRequestUrl("/api/query", params);
   const res = await fetch(url);
   const text = await res.text();
   return parseArxivFeed(text);
@@ -112,9 +114,8 @@ export async function searchArxiv(
     sortOrder: "descending",
   });
 
-  const res = await fetch(
-    `https://export.arxiv.org/api/query?${params.toString()}`
-  );
+  const url = buildArxivRequestUrl("/api/query", params);
+  const res = await fetch(url);
   const text = await res.text();
   return parseArxivFeed(text);
 }
