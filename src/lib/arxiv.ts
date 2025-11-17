@@ -1,4 +1,5 @@
 import type { Channel, ArxivEntry } from "../types";
+import { fetchArxivResource } from "./arxivProxy";
 import { extractArxivIdFromAbsUrl, tokenizeKeywords } from "./utils";
 
 function buildArxivQuery(ch: Channel) {
@@ -76,10 +77,17 @@ function parseArxivFeed(text: string): ArxivEntry[] {
   });
 }
 
+async function fetchArxivFeedXml(url: string): Promise<string> {
+  const res = await fetchArxivResource(url);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch arXiv feed: ${res.status}`);
+  }
+  return res.text();
+}
+
 export async function fetchArxiv(channel: Channel): Promise<ArxivEntry[]> {
   const url = buildArxivQuery(channel);
-  const res = await fetch(url);
-  const text = await res.text();
+  const text = await fetchArxivFeedXml(url);
   return parseArxivFeed(text);
 }
 
@@ -112,9 +120,8 @@ export async function searchArxiv(
     sortOrder: "descending",
   });
 
-  const res = await fetch(
-    `https://export.arxiv.org/api/query?${params.toString()}`
+  const text = await fetchArxivFeedXml(
+    `https://export.arxiv.org/api/query?${params.toString()}`,
   );
-  const text = await res.text();
   return parseArxivFeed(text);
 }

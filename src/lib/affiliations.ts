@@ -1,4 +1,5 @@
 import type { OrgInfo } from "../types";
+import { fetchArxivResource } from "./arxivProxy";
 
 const ABSTRACT_MARKERS = [
   ">abstract<",
@@ -29,7 +30,10 @@ export async function fetchAuthorTextFromArxivHtml(
   maxBytes = DEFAULT_MAX_BYTES,
 ): Promise<string> {
   const exportUrl = url.replace(/^https?:\/\/arxiv.org/, "https://export.arxiv.org");
-  const res = await fetch(exportUrl);
+  const res = await fetchArxivResource(exportUrl);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch arXiv HTML: ${res.status}`);
+  }
   let prefix: string;
   const reader = res.body?.getReader();
   if (reader) {
