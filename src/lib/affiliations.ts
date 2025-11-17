@@ -1,4 +1,5 @@
 import type { OrgInfo } from "../types";
+import { buildArxivRequestUrlFromAbsolute } from "./arxivProxy";
 
 const ABSTRACT_MARKERS = [
   ">abstract<",
@@ -28,8 +29,8 @@ export async function fetchAuthorTextFromArxivHtml(
   url: string,
   maxBytes = DEFAULT_MAX_BYTES,
 ): Promise<string> {
-  const exportUrl = url.replace(/^https?:\/\/arxiv.org/, "https://export.arxiv.org");
-  const res = await fetch(exportUrl);
+  const proxiedUrl = buildArxivRequestUrlFromAbsolute(url);
+  const res = await fetch(proxiedUrl);
   let prefix: string;
   const reader = res.body?.getReader();
   if (reader) {
