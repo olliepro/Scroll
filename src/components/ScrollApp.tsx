@@ -113,6 +113,7 @@ export default function ScrollApp() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [apiKeyDraft, setApiKeyDraft] = useState(openaiKey);
 
   useEffect(() => {
     if (adding || searching) {
@@ -131,12 +132,13 @@ export default function ScrollApp() {
 
   useEffect(() => {
     if (!menuOpen) return;
+    setApiKeyDraft(openaiKey);
     function handleClick() {
       setMenuOpen(false);
     }
     window.addEventListener("click", handleClick);
     return () => window.removeEventListener("click", handleClick);
-  }, [menuOpen]);
+  }, [menuOpen, openaiKey]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
@@ -222,11 +224,6 @@ export default function ScrollApp() {
       e.preventDefault();
       e.stopPropagation();
     }
-  }
-
-  function promptApiKey() {
-    const key = window.prompt("Enter OpenAI API key", openaiKey || "");
-    if (key !== null) setOpenaiKey(key.trim());
   }
 
   const activeChannel: Channel | null = useMemo(
@@ -621,7 +618,10 @@ export default function ScrollApp() {
                 <Menu className="h-4 w-4" />
               </button>
               {menuOpen && (
-                <div className="absolute right-0 top-12 w-48 rounded-xl border border-app bg-panel-strong shadow-lg p-2 z-30">
+                <div
+                  className="absolute right-0 top-12 w-64 rounded-xl border border-app bg-panel-strong shadow-lg p-2 z-30"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -637,16 +637,32 @@ export default function ScrollApp() {
                     )}
                     {theme === "dark" ? "Light mode" : "Dark mode"}
                   </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      promptApiKey();
-                      setMenuOpen(false);
-                    }}
-                    className="mt-2 w-full px-3 py-2 text-xs rounded-lg border border-app chip transition-colors text-left"
-                  >
-                    API Key
-                  </button>
+                  <div className="mt-2 w-full rounded-lg border border-app chip px-3 py-2">
+                    <div className="text-[11px] text-muted mb-1">API Key</div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        value={apiKeyDraft}
+                        onChange={(e) => setApiKeyDraft(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            setOpenaiKey(apiKeyDraft.trim());
+                            setMenuOpen(false);
+                          }
+                        }}
+                        placeholder="sk-..."
+                        className="flex-1 bg-transparent text-xs text-primary outline-none placeholder-subtle"
+                      />
+                      <button
+                        onClick={() => {
+                          setOpenaiKey(apiKeyDraft.trim());
+                          setMenuOpen(false);
+                        }}
+                        className="px-2 py-1 text-[11px] rounded-md border border-app chip transition-colors"
+                      >
+                        Save
+                      </button>
+                    </div>
+                  </div>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
