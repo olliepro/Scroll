@@ -616,6 +616,7 @@ export default function ScrollApp() {
                   e.stopPropagation();
                   setMenuOpen((open) => !open);
                 }}
+                onPointerDown={(e) => e.stopPropagation()}
                 className="p-2 text-primary hover:text-soft transition-colors"
                 aria-label="Open menu"
                 aria-expanded={menuOpen}
@@ -628,6 +629,7 @@ export default function ScrollApp() {
                 <div
                   className="absolute right-0 top-12 w-64 rounded-xl border border-app bg-panel-strong shadow-lg p-2 z-30"
                   onClick={(e) => e.stopPropagation()}
+                  onPointerDown={(e) => e.stopPropagation()}
                   ref={menuRef}
                 >
                   <button
