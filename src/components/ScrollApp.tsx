@@ -11,6 +11,7 @@ import {
   Heart,
   Moon,
   Sun,
+  Menu,
 } from "lucide-react";
 import { fetchArxiv, searchArxiv } from "../lib/arxiv";
 import { fetchAltmetric } from "../lib/altmetric";
@@ -111,6 +112,7 @@ export default function ScrollApp() {
   const [searchResults, setSearchResults] = useState<ArxivEntry[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   useEffect(() => {
     if (adding || searching) {
@@ -126,6 +128,15 @@ export default function ScrollApp() {
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
   }, [theme]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClick() {
+      setMenuOpen(false);
+    }
+    window.addEventListener("click", handleClick);
+    return () => window.removeEventListener("click", handleClick);
+  }, [menuOpen]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
@@ -590,13 +601,7 @@ export default function ScrollApp() {
             <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
               Scrolls
             </div>
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={promptApiKey}
-                className="px-2 py-1 text-xs rounded-full border border-app chip transition-colors"
-              >
-                API Key
-              </button>
+            <div className="ml-auto flex items-center gap-2 relative">
               <button
                 onClick={() => setSearching(true)}
                 className="px-2 py-1 text-xs rounded-full border border-app chip transition-colors flex items-center gap-1"
@@ -604,13 +609,56 @@ export default function ScrollApp() {
                 <Search className="h-3.5 w-3.5" /> Search
               </button>
               <button
-                onClick={() => setAdding(true)}
-                className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setMenuOpen((open) => !open);
+                }}
+                className="px-2.5 py-2 rounded-full border border-app chip transition-colors"
+                aria-label="Open menu"
+                aria-expanded={menuOpen}
+                aria-haspopup="menu"
               >
-                <span className="inline-flex items-center gap-1">
-                  <Plus className="h-4 w-4" /> Channel
-                </span>
+                <Menu className="h-4 w-4" />
               </button>
+              {menuOpen && (
+                <div className="absolute right-0 top-12 w-48 rounded-xl border border-app bg-panel-strong shadow-lg p-2 z-30">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+                      setMenuOpen(false);
+                    }}
+                    className="w-full px-3 py-2 text-xs rounded-lg border border-app chip transition-colors flex items-center gap-2"
+                  >
+                    {theme === "dark" ? (
+                      <Sun className="h-4 w-4" />
+                    ) : (
+                      <Moon className="h-4 w-4" />
+                    )}
+                    {theme === "dark" ? "Light mode" : "Dark mode"}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      promptApiKey();
+                      setMenuOpen(false);
+                    }}
+                    className="mt-2 w-full px-3 py-2 text-xs rounded-lg border border-app chip transition-colors text-left"
+                  >
+                    API Key
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAdding(true);
+                      setMenuOpen(false);
+                    }}
+                    className="mt-2 w-full px-3 py-2 text-xs rounded-lg bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20 text-white flex items-center gap-2"
+                  >
+                    <Plus className="h-4 w-4" /> Channel
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -1057,6 +1105,7 @@ export default function ScrollApp() {
                   key={e.id}
                   entry={e}
                   index={idx}
+                  total={visibleEntries.length}
                   saved={isSaved(e.arxivId)}
                   onToggleSave={() => openSaveMenu(e)}
                   altCounts={altCache[e.arxivId]?.counts}
@@ -1079,33 +1128,11 @@ export default function ScrollApp() {
           Jump to latest unseen
         </button>
       )}
-      <button
-        className="fixed bottom-7 left-7 z-20 flex items-center gap-2 px-3 py-2 rounded-full border border-app chip shadow-sm text-xs"
-        onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
-        aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-      >
-        {theme === "dark" ? (
-          <Sun className="h-4 w-4" />
-        ) : (
-          <Moon className="h-4 w-4" />
-        )}
-        {theme === "dark" ? "Light mode" : "Dark mode"}
-      </button>
 
       {/* Footer: rate limit + page indicator */}
       <div className="shrink-0 px-3 py-2 text-xs text-muted flex items-center gap-3 border-t border-app-subtle bg-panel-strong backdrop-blur-xl">
-        <div>
-          {entries ? (
-            <span>
-              Card {Math.min(pageIndex + 1, entries.length)} / {entries.length}
-            </span>
-          ) : (
-            <span>—</span>
-          )}
-        </div>
-
         {rateLimitHoldUntil && Date.now() < rateLimitHoldUntil ? (
-          <div className="ml-auto">
+          <div>
             Altmetric paused — retry in{" "}
             {Math.max(
               0,
@@ -1114,7 +1141,7 @@ export default function ScrollApp() {
             s
           </div>
         ) : rateInfo ? (
-          <div className="ml-auto flex items-center gap-3 opacity-80">
+          <div className="flex items-center gap-3 opacity-80">
             {typeof rateInfo.hourlyRemaining === "number" && (
               <span>
                 Altmetric hourly: {rateInfo.hourlyRemaining}/

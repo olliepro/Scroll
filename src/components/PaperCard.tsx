@@ -10,6 +10,7 @@ import { MetricChip } from "./MetricChip";
 export function PaperCard({
   entry,
   index,
+  total,
   saved,
   onToggleSave,
   altCounts,
@@ -20,6 +21,7 @@ export function PaperCard({
 }: {
   entry: ArxivEntry;
   index: number;
+  total: number;
   saved: boolean;
   onToggleSave: () => void;
   altCounts: AltmetricCounts | null | undefined;
@@ -83,6 +85,9 @@ export function PaperCard({
             transition={{ type: "spring", stiffness: 120, damping: 18 }}
             className="relative h-full w-full max-w-sm sm:max-w-md rounded-3xl border border-app overflow-hidden flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.4)]">
           <div className="absolute inset-0 -z-10 bg-card" />
+          <div className="absolute top-3 right-3 rounded-full px-2 py-1 text-[11px] border border-app chip">
+            {index + 1}/{total}
+          </div>
           {/* Header row */}
           <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-app-subtle">
             <div className="flex items-center gap-2">
