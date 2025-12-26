@@ -616,11 +616,11 @@ export default function ScrollApp() {
               {menuOpen && (
                 <>
                   <div
-                    className="fixed inset-0 z-20"
+                    className="fixed inset-0 z-10"
                     onClick={() => setMenuOpen(false)}
                     aria-hidden="true"
                   />
-                  <div className="absolute right-0 top-12 w-64 rounded-xl border border-app bg-panel-strong shadow-lg p-2 z-30">
+                  <div className="absolute right-0 top-12 w-64 rounded-xl border border-app bg-panel-strong shadow-lg p-2 z-40 pointer-events-auto">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
