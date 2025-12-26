@@ -1080,7 +1080,7 @@ export default function ScrollApp() {
         </button>
       )}
       <button
-        className="fixed bottom-4 left-4 z-20 flex items-center gap-2 px-3 py-2 rounded-full border border-app chip shadow-sm text-xs"
+        className="fixed bottom-7 left-7 z-20 flex items-center gap-2 px-3 py-2 rounded-full border border-app chip shadow-sm text-xs"
         onClick={() => setTheme((prev) => (prev === "dark" ? "light" : "dark"))}
         aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
       >
