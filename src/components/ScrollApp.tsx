@@ -131,20 +131,10 @@ export default function ScrollApp() {
   }, [theme]);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
-  const menuButtonRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     if (!menuOpen) return;
     setApiKeyDraft(openaiKey);
-    function handlePointerDown(event: PointerEvent) {
-      const target = event.target as Node;
-      if (menuRef.current?.contains(target)) return;
-      if (menuButtonRef.current?.contains(target)) return;
-      setMenuOpen(false);
-    }
-    window.addEventListener("pointerdown", handlePointerDown);
-    return () => window.removeEventListener("pointerdown", handlePointerDown);
   }, [menuOpen, openaiKey]);
 
   const [pageIndex, setPageIndex] = useState(0);
@@ -616,22 +606,21 @@ export default function ScrollApp() {
                   e.stopPropagation();
                   setMenuOpen((open) => !open);
                 }}
-                onPointerDown={(e) => e.stopPropagation()}
                 className="p-2 text-primary hover:text-soft transition-colors"
                 aria-label="Open menu"
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
-                ref={menuButtonRef}
               >
                 <Menu className="h-4 w-4" />
               </button>
               {menuOpen && (
-                <div
-                  className="absolute right-0 top-12 w-64 rounded-xl border border-app bg-panel-strong shadow-lg p-2 z-30"
-                  onClick={(e) => e.stopPropagation()}
-                  onPointerDown={(e) => e.stopPropagation()}
-                  ref={menuRef}
-                >
+                <>
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setMenuOpen(false)}
+                    aria-hidden="true"
+                  />
+                  <div className="absolute right-0 top-12 w-64 rounded-xl border border-app bg-panel-strong shadow-lg p-2 z-30">
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
@@ -683,7 +672,8 @@ export default function ScrollApp() {
                   >
                     <Plus className="h-4 w-4" /> Channel
                   </button>
-                </div>
+                  </div>
+                </>
               )}
             </div>
           </div>
