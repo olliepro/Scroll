@@ -82,7 +82,7 @@ export function PaperCard({
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", stiffness: 120, damping: 18 }}
             className="relative h-full w-full max-w-sm sm:max-w-md rounded-3xl border border-white/10 overflow-hidden flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.4)]">
-          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-indigo-900/40 via-slate-900/80 to-slate-950" />
+          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[#1a2334] via-[#121722] to-[#0b0d12]" />
           {/* Header row */}
           <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-white/5">
             <div className="flex items-center gap-2">
@@ -90,14 +90,14 @@ export function PaperCard({
                 title={status}
                 className={clsx(
                   "text-xs",
-                  status === "unviewed" && "text-zinc-500",
-                  status === "viewed" && "text-sky-400",
-                  status === "read" && "text-emerald-400"
+                  status === "unviewed" && "text-slate-500",
+                  status === "viewed" && "text-blue-300",
+                  status === "read" && "text-rose-300"
                 )}
               >
                 {statusSymbol}
               </span>
-              <div className="text-[11px] uppercase tracking-wider text-zinc-400">
+              <div className="text-[11px] uppercase tracking-wider text-slate-400">
                 {formatDateShort(entry.published)}
               </div>
             </div>
@@ -129,12 +129,12 @@ export function PaperCard({
                 className={clsx(
                   "px-2 py-1 text-xs rounded-full border flex items-center gap-1",
                   saved
-                    ? "bg-fuchsia-600/20 border-fuchsia-500 text-fuchsia-200"
+                    ? "bg-rose-500/20 border-rose-400 text-rose-100"
                     : "bg-white/5 hover:bg-white/10 border-white/10"
                 )}
               >
                 {saved ? (
-                  <Heart className="h-3.5 w-3.5 fill-fuchsia-500 text-fuchsia-500" />
+                  <Heart className="h-3.5 w-3.5 fill-rose-400 text-rose-400" />
                 ) : (
                   <Heart className="h-3.5 w-3.5" />
                 )}
@@ -149,7 +149,7 @@ export function PaperCard({
               className="text-xl sm:text-2xl font-semibold leading-snug text-white"
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
             />
-            <div className="mt-1 text-sm text-zinc-400">
+            <div className="mt-1 text-sm text-slate-400">
               {entry.authors.slice(0, 6).join(", ")}
               {entry.authors.length > 6 && " et al."}
             </div>
@@ -166,7 +166,7 @@ export function PaperCard({
                             href={`https://${o.domain}`}
                             target="_blank"
                             rel="noreferrer"
-                            className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                            className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-300 flex items-center gap-1"
                           >
                             {o.favicon && (
                               <img
@@ -180,7 +180,7 @@ export function PaperCard({
                         ) : (
                           <span
                             key={o.name}
-                            className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                            className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-300 flex items-center gap-1"
                           >
                             {o.favicon && (
                               <img
@@ -195,7 +195,7 @@ export function PaperCard({
                       )}
                       <button
                         onClick={() => setOrgsOpen(false)}
-                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300"
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-300"
                       >
                         <X className="h-3 w-3" />
                       </button>
@@ -215,12 +215,12 @@ export function PaperCard({
                           />
                         ))
                       ) : (
-                        <span className="text-[11px] text-zinc-300">
+                        <span className="text-[11px] text-slate-300">
                           {orgs[0].name}
                         </span>
                       )}
                       {orgExtra > 0 && (
-                        <span className="text-[11px] text-zinc-300">+{orgExtra}</span>
+                        <span className="text-[11px] text-slate-300">+{orgExtra}</span>
                       )}
                     </button>
                   )
@@ -232,7 +232,7 @@ export function PaperCard({
                         href={`https://${o.domain}`}
                         target="_blank"
                         rel="noreferrer"
-                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-300 flex items-center gap-1"
                       >
                         {o.favicon && (
                           <img
@@ -246,7 +246,7 @@ export function PaperCard({
                     ) : (
                       <span
                         key={o.name}
-                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-zinc-300 flex items-center gap-1"
+                        className="px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-[11px] text-slate-300 flex items-center gap-1"
                       >
                         {o.favicon && (
                           <img
@@ -265,7 +265,7 @@ export function PaperCard({
             {/* Abstract */}
             <p
               ref={paraRef}
-              className="mt-3 text-sm text-zinc-300 leading-relaxed whitespace-pre-wrap"
+              className="mt-3 text-sm text-slate-300 leading-relaxed whitespace-pre-wrap"
               style={{
                 display: "-webkit-box",
                 WebkitLineClamp: lineClamp,
@@ -280,14 +280,14 @@ export function PaperCard({
                 setShowFull(true);
                 onMarkRead();
               }}
-              className="mt-0.5 text-xs text-fuchsia-300 hover:underline"
+              className="mt-0.5 text-xs text-rose-200 hover:underline"
             >
               See more
             </button>
           </div>
 
           {/* Bottom metrics bar */}
-          <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-black/40 via-slate-900/40 to-black/40 backdrop-blur">
+          <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-black/40 via-[#151c2c]/70 to-black/40 backdrop-blur">
             <div className="flex items-center gap-3">
               {altCounts?.cited_by_tweeters_count &&
                 altCounts.cited_by_tweeters_count > 1 && (
@@ -313,7 +313,7 @@ export function PaperCard({
                     value={altCounts.cited_by_wikipedia_count}
                   />
                 )}
-              <div className="ml-auto text-[11px] text-zinc-400">
+              <div className="ml-auto text-[11px] text-slate-400">
                 {altStatus === 404 ? (
                   <span className="opacity-60">No Social Metrics Yet</span>
                 ) : typeof altCounts?.cited_by_accounts_count === "number" ||
@@ -345,7 +345,7 @@ export function PaperCard({
           animate={{ x: 0 }}
           exit={{ x: "100%" }}
           transition={{ type: "spring", stiffness: 260, damping: 30 }}
-          className="w-full max-w-md bg-slate-950 p-6 overflow-y-auto"
+          className="w-full max-w-md bg-[#0f1320] p-6 overflow-y-auto"
           style={{ height: "calc(var(--vh, 1vh) * 100)" }}
         >
           <button
@@ -359,7 +359,7 @@ export function PaperCard({
             dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
           />
           <div
-            className="text-sm text-zinc-300 whitespace-pre-wrap"
+            className="text-sm text-slate-300 whitespace-pre-wrap"
             dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
           />
         </motion.div>

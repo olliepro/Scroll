@@ -1,4 +1,4 @@
-const DEFAULT_PROXY_ENDPOINT = "/api/arxiv";
+const DEFAULT_PROXY_ENDPOINT = "/projects/scroll/api/arxiv";
 const PROXY_ENDPOINT =
   (import.meta.env.VITE_ARXIV_PROXY_ENDPOINT as string | undefined) ||
   DEFAULT_PROXY_ENDPOINT;

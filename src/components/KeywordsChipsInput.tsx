@@ -48,11 +48,11 @@ export function KeywordsChipsInput({
   }, [tokens]);
 
   return (
-    <div className="min-h-10 w-full rounded-md border border-white/10 bg-black/50 px-2 py-1.5 flex flex-wrap gap-1 focus-within:ring-2 focus-within:ring-fuchsia-600">
+    <div className="min-h-10 w-full rounded-md border border-white/10 bg-black/40 px-2 py-1.5 flex flex-wrap gap-1 focus-within:ring-2 focus-within:ring-rose-500/60">
       {tokens.map((t, i) => (
         <span
           key={i}
-          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 text-xs text-zinc-200 border border-white/10"
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 text-xs text-slate-200 border border-white/10"
         >
           {t}
           <button
@@ -71,7 +71,7 @@ export function KeywordsChipsInput({
         onKeyDown={onKeyDown}
         onBlur={onBlur}
         placeholder={tokens.length ? "" : placeholder}
-        className="flex-1 bg-transparent outline-none text-sm text-white min-w-[8ch] placeholder:text-zinc-500"
+        className="flex-1 bg-transparent outline-none text-sm text-white min-w-[8ch] placeholder:text-slate-500"
       />
     </div>
   );

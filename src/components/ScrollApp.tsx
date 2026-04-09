@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Loader2,
-  Plus,
   Trash2,
   Bookmark,
-  Search,
   ChevronDown,
   ExternalLink,
   FileDown,
@@ -35,9 +33,10 @@ import type {
 } from "../types";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
+import { ProudfootProjectHeader } from "./ProudfootProjectHeader";
 import "../styles/no-scrollbar";
 
-const scrollIcon = "/scroll.png";
+const scrollIconUrl = new URL("../assets/scroll.png", import.meta.url).href;
 
 export default function ScrollApp() {
   const [channels, setChannels] = useLocalStorage<Channel[]>(
@@ -555,54 +554,19 @@ export default function ScrollApp() {
 
     return (
       <div
-        className="w-full text-zinc-100 flex flex-col overflow-hidden relative"
+        className="scroll-app-shell w-full text-slate-100 flex flex-col overflow-hidden relative"
         style={{ height: "calc(var(--vh, 1vh) * 100)" }}
       >
-        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(139,92,246,0.2)_0%,_transparent_60%),radial-gradient(ellipse_at_bottom_right,_rgba(56,189,248,0.15)_0%,_transparent_60%)]" />
-        {/* Top bar */}
-        <div className="shrink-0 border-b border-white/10 bg-black/30 backdrop-blur-lg">
-          <div className="px-4 py-3 flex items-center gap-2">
-            <div
-              className="h-9 w-9 bg-gradient-to-r from-fuchsia-400 via-indigo-400 to-sky-400"
-              style={{
-                WebkitMaskImage: `url(${scrollIcon})`,
-                maskImage: `url(${scrollIcon})`,
-                WebkitMaskRepeat: "no-repeat",
-                maskRepeat: "no-repeat",
-                WebkitMaskSize: "contain",
-                maskSize: "contain",
-              }}
-            />
-            <div className="text-lg font-bold tracking-wide bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
-              Scrolls
-            </div>
-            <div className="ml-auto flex items-center gap-2">
-              <button
-                onClick={promptApiKey}
-                className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10"
-              >
-                API Key
-              </button>
-              <button
-                onClick={() => setSearching(true)}
-                className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1"
-              >
-                <Search className="h-3.5 w-3.5" /> Search
-              </button>
-              <button
-                onClick={() => setAdding(true)}
-                className="px-3 py-1.5 rounded-md text-sm bg-gradient-to-r from-fuchsia-600 to-indigo-600 hover:opacity-90 shadow-lg shadow-fuchsia-500/20"
-              >
-                <span className="inline-flex items-center gap-1">
-                  <Plus className="h-4 w-4" /> Channel
-                </span>
-              </button>
-            </div>
-          </div>
-        </div>
+        <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(229,77,103,0.16)_0%,_transparent_58%),radial-gradient(ellipse_at_bottom_right,_rgba(63,98,186,0.16)_0%,_transparent_62%)]" />
+        <ProudfootProjectHeader
+          logoUrl={scrollIconUrl}
+          onOpenChannelCreator={() => setAdding(true)}
+          onOpenSearch={() => setSearching(true)}
+          onPromptApiKey={promptApiKey}
+        />
 
         {/* Channel strip */}
-        <div className="px-3 pb-2 overflow-x-auto no-scrollbar">
+        <div className="px-3 py-2 overflow-x-auto no-scrollbar">
           <div className="flex gap-2">
             {channels.map((ch) => (
               <div
@@ -610,7 +574,7 @@ export default function ScrollApp() {
                 className={clsx(
                   "group flex items-center pl-2 pr-2 py-1 rounded-full border transition-colors",
                   activeId === ch.id
-                    ? "bg-gradient-to-r from-fuchsia-600/40 to-indigo-600/40 border-fuchsia-500/40"
+                    ? "bg-gradient-to-r from-rose-500/30 to-blue-500/30 border-rose-400/40"
                     : "bg-white/5 border-white/10 hover:bg-white/10"
                 )}
                 onTouchStart={() => startLongPress("channel", ch.id, ch.name)}
@@ -654,8 +618,8 @@ export default function ScrollApp() {
                 className={clsx(
                   "group flex items-center pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
                   activeId === `list:${list.id}`
-                    ? "bg-gradient-to-r from-emerald-600/40 to-teal-600/40 border-emerald-500/40"
-                    : "bg-emerald-500/10 border-emerald-400/20 hover:bg-emerald-500/20"
+                    ? "bg-gradient-to-r from-blue-500/30 to-slate-500/30 border-blue-400/40"
+                    : "bg-blue-500/10 border-blue-400/20 hover:bg-blue-500/20"
                 )}
                 onTouchStart={() => startLongPress("list", list.id, list.name)}
                 onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
@@ -696,10 +660,10 @@ export default function ScrollApp() {
           }}
         >
           <div
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-800 backdrop-blur-xl shadow-lg shadow-fuchsia-500/20 text-white p-6"
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-gradient-to-b from-[#141a28] to-[#0f1320] backdrop-blur-xl shadow-lg shadow-black/30 text-white p-6"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="text-lg font-semibold mb-3 bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-sky-300 bg-clip-text text-transparent">
+            <div className="text-lg font-semibold mb-3 bg-gradient-to-r from-rose-200 via-slate-100 to-blue-200 bg-clip-text text-transparent">
               Save to List
             </div>
             <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
@@ -717,7 +681,7 @@ export default function ScrollApp() {
                   >
                     <input
                       type="checkbox"
-                      className="accent-fuchsia-600"
+                      className="accent-rose-500"
                       checked={checked}
                       onChange={() => togglePaperInList(list.id)}
                     />
@@ -730,12 +694,12 @@ export default function ScrollApp() {
                   value={newListName}
                   onChange={(e) => setNewListName(e.target.value)}
                   placeholder="New list name"
-                  className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                  className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
                 />
                 <button
                   disabled={!newListName.trim()}
                   onClick={createList}
-                  className="px-3 py-1 rounded-md bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-sm disabled:opacity-50"
+                  className="px-3 py-1 rounded-md bg-gradient-to-r from-rose-500 to-blue-500 text-sm disabled:opacity-50"
                 >
                   Create
                 </button>
@@ -768,7 +732,7 @@ export default function ScrollApp() {
           }}
         >
           <div
-            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 text-white p-4"
+            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-gradient-to-b from-[#141a28] to-[#0f1320] text-white p-4"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-lg font-semibold mb-2">Search Papers</div>
@@ -778,12 +742,12 @@ export default function ScrollApp() {
                 onChange={(e) => setSearchInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && performSearch()}
                 placeholder="Title or DOI"
-                className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
               />
               <button
                 onClick={performSearch}
                 disabled={!searchInput.trim() || searchLoading}
-                className="px-3 py-2 rounded-md bg-gradient-to-r from-fuchsia-600 to-indigo-600 text-sm disabled:opacity-50"
+                className="px-3 py-2 rounded-md bg-gradient-to-r from-rose-500 to-blue-500 text-sm disabled:opacity-50"
               >
                 {searchLoading ? "Searching..." : "Search"}
               </button>
@@ -803,7 +767,7 @@ export default function ScrollApp() {
                       __html: renderLaTeX(e.title),
                     }}
                   />
-                  <div className="text-sm text-zinc-400">
+                  <div className="text-sm text-slate-400">
                     {e.authors.join(", ")}
                   </div>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -832,12 +796,12 @@ export default function ScrollApp() {
                       className={clsx(
                         "px-2 py-1 text-xs rounded-full border flex items-center gap-1",
                         isSaved(e.arxivId)
-                          ? "bg-fuchsia-600/20 border-fuchsia-500 text-fuchsia-200"
+                          ? "bg-rose-500/20 border-rose-400 text-rose-100"
                           : "bg-white/5 hover:bg-white/10 border-white/10"
                       )}
                     >
                       {isSaved(e.arxivId) ? (
-                        <Heart className="h-3.5 w-3.5 fill-fuchsia-500 text-fuchsia-500" />
+                        <Heart className="h-3.5 w-3.5 fill-rose-400 text-rose-400" />
                       ) : (
                         <Heart className="h-3.5 w-3.5" />
                       )}
@@ -847,7 +811,7 @@ export default function ScrollApp() {
                 </div>
               ))}
               {searchResults.length === 0 && !searchLoading && searchInput && (
-                <div className="text-sm text-zinc-400">No results</div>
+                <div className="text-sm text-slate-400">No results</div>
               )}
             </div>
           </div>
@@ -865,31 +829,31 @@ export default function ScrollApp() {
           }}
         >
           <div
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-zinc-900 to-zinc-950 backdrop-blur-xl text-white p-4 overflow-y-auto"
+            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-[#141a28] to-[#0f1320] backdrop-blur-xl text-white p-4 overflow-y-auto"
             style={{ maxHeight: "calc(var(--vh, 1vh) * 100)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <div className="text-lg font-semibold">Create a Channel</div>
-            <div className="text-zinc-400 text-sm">
+            <div className="text-slate-400 text-sm">
               Channels are sets of filters: keywords and arXiv categories. Newest
               first.
             </div>
 
             <div className="space-y-3 mt-3">
               <div>
-                <label className="text-sm text-zinc-300">Name</label>
+                <label className="text-sm text-slate-300">Name</label>
                 <input
                   value={newChannel.name}
                   onChange={(e) =>
                     setNewChannel((p) => ({ ...p, name: e.target.value }))
                   }
                   placeholder="My Vision + LLMs"
-                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
                 />
               </div>
 
               <div>
-                <label className="text-sm text-zinc-300">Keywords</label>
+                <label className="text-sm text-slate-300">Keywords</label>
                 <div className="mt-1">
                   <KeywordsChipsInput
                     value={newChannel.keywords}
@@ -899,22 +863,22 @@ export default function ScrollApp() {
                     placeholder={"Type a keyword, press Enter — use quotes for phrases"}
                   />
                 </div>
-                <div className="text-[11px] text-zinc-400 mt-1">
+                <div className="text-[11px] text-slate-400 mt-1">
                   Example: <code>"vision-language" retrieval RAG "policy gradient"</code>
                 </div>
               </div>
 
               <div>
-                <label className="text-sm text-zinc-300">Author</label>
+                <label className="text-sm text-slate-300">Author</label>
                 <input
                   value={newChannel.author ?? ""}
                   onChange={(e) =>
                     setNewChannel((p) => ({ ...p, author: e.target.value }))
                   }
                   placeholder="First Last"
-                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
                 />
-                <div className="text-[11px] text-zinc-400 mt-1">
+                <div className="text-[11px] text-slate-400 mt-1">
                   Example: <code>Yann LeCun</code>
                 </div>
               </div>
@@ -923,7 +887,7 @@ export default function ScrollApp() {
                 <button
                   type="button"
                   onClick={() => setCategoriesOpen((o) => !o)}
-                  className="flex items-center justify-between w-full text-sm text-zinc-300"
+                  className="flex items-center justify-between w-full text-sm text-slate-300"
                 >
                   Categories
                   <ChevronDown
@@ -951,8 +915,8 @@ export default function ScrollApp() {
                           className={clsx(
                             "px-2.5 py-1 rounded-full text-xs border",
                             active
-                              ? "bg-fuchsia-600/30 border-fuchsia-500 text-fuchsia-200"
-                              : "bg-white/5 border-white/10 text-zinc-300 hover:bg-white/10",
+                              ? "bg-rose-500/25 border-rose-400 text-rose-100"
+                              : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10",
                           )}
                         >
                           {label}
@@ -965,7 +929,7 @@ export default function ScrollApp() {
               </div>
 
               <div>
-                <label className="text-sm text-zinc-300">Items in feed</label>
+                <label className="text-sm text-slate-300">Items in feed</label>
                 <input
                   type="number"
                   min={1}
@@ -977,7 +941,7 @@ export default function ScrollApp() {
                       maxResults: Number(e.target.value),
                     }))
                   }
-                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-fuchsia-600/40"
+                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
                 />
               </div>
               <div className="flex justify-end gap-2 pt-2">
@@ -995,7 +959,7 @@ export default function ScrollApp() {
                   className={clsx(
                     "px-3 py-1.5 rounded-md",
                     newChannel.name.trim()
-                      ? "bg-gradient-to-r from-fuchsia-600 to-indigo-600 shadow-lg shadow-fuchsia-500/20"
+                      ? "bg-gradient-to-r from-rose-500 to-blue-500 shadow-lg shadow-black/30"
                       : "bg-white/10 text-white/50",
                   )}
                   onClick={() =>
@@ -1020,7 +984,7 @@ export default function ScrollApp() {
       <div ref={containerRef} className="flex-1 relative">
         {loading && (
           <div className="absolute inset-0 grid place-items-center">
-            <div className="flex items-center gap-2 text-zinc-400">
+            <div className="flex items-center gap-2 text-slate-400">
               <Loader2 className="h-5 w-5 animate-spin" />
               <span>Loading newest papers…</span>
             </div>
@@ -1028,9 +992,9 @@ export default function ScrollApp() {
         )}
         {error && (
           <div className="absolute inset-0 grid place-items-center">
-            <div className="text-center text-zinc-300">
+            <div className="text-center text-slate-300">
               <div className="font-semibold mb-1">Couldn’t load arXiv</div>
-              <div className="text-sm text-zinc-400">{error}</div>
+              <div className="text-sm text-slate-400">{error}</div>
             </div>
           </div>
         )}
@@ -1059,7 +1023,7 @@ export default function ScrollApp() {
 
       {firstUnseenIndex >= 0 && firstUnseenIndex !== pageIndex && (
         <button
-          className="fixed bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-fuchsia-600 hover:bg-fuchsia-700 text-sm shadow-lg"
+          className="fixed bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-rose-500 hover:bg-rose-600 text-sm shadow-lg shadow-black/30"
           onClick={() => scrollToIndex(firstUnseenIndex)}
         >
           Jump to latest unseen
@@ -1067,7 +1031,7 @@ export default function ScrollApp() {
       )}
 
       {/* Footer: rate limit + page indicator */}
-      <div className="shrink-0 px-3 py-2 text-xs text-zinc-400 flex items-center gap-3 border-t border-white/5 bg-black/40 backdrop-blur-xl">
+      <div className="shrink-0 px-3 py-2 text-xs text-slate-400 flex items-center gap-3 border-t border-white/5 bg-black/40 backdrop-blur-xl">
         <div>
           {entries ? (
             <span>
@@ -1105,7 +1069,11 @@ export default function ScrollApp() {
       </div>
       {orgLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <img src={scrollIcon} className="h-32 w-32 animate-pulse" alt="Loading" />
+          <img
+            src={scrollIconUrl}
+            className="h-32 w-32 animate-pulse"
+            alt="Loading"
+          />
         </div>
       )}
     </div>

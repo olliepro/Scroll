@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:proudfoot": "tsc -b && vite build --base /projects/scroll/ --outDir ../scroll --emptyOutDir",
     "lint": "eslint .",
     "preview": "vite preview"
   },
