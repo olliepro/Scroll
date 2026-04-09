@@ -139,6 +139,14 @@ export function ProudfootProjectHeader({
   }, [isCompact]);
 
   useEffect(() => {
+    const shouldLockPage = isCompact && menuOpen;
+    document.body.classList.toggle("scroll-menu-open", shouldLockPage);
+    return () => {
+      document.body.classList.remove("scroll-menu-open");
+    };
+  }, [isCompact, menuOpen]);
+
+  useEffect(() => {
     if (!menuOpen) return;
 
     function handlePointerDown(event: MouseEvent) {
@@ -176,7 +184,7 @@ export function ProudfootProjectHeader({
           />
           <div className="scroll-project-copy">
             <p className="scroll-project-kicker">Oliver Proudfoot / Projects</p>
-            <h1 className="scroll-project-title">Scroll</h1>
+            <h1 className="scroll-project-title">α Scroll</h1>
           </div>
         </div>
         <div className="scroll-project-measure" ref={actionsMeasureRef}>
@@ -194,9 +202,25 @@ export function ProudfootProjectHeader({
             </svg>
           </a>
         </div>
-        <div className="scroll-project-actions" ref={menuRef}>
+        <div
+          className={[
+            "scroll-project-actions",
+            menuOpen ? "scroll-project-actions--menu-open" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          ref={menuRef}
+        >
           {isCompact ? (
             <>
+              {menuOpen && (
+                <button
+                  aria-label="Close project actions"
+                  className="scroll-project-backdrop"
+                  onClick={() => setMenuOpen(false)}
+                  type="button"
+                />
+              )}
               <button
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
