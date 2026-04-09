@@ -46,9 +46,6 @@ export function ProudfootProjectHeader({
           <div className="scroll-project-copy">
             <p className="scroll-project-kicker">Oliver Proudfoot / Projects</p>
             <h1 className="scroll-project-title">Scroll</h1>
-            <p className="scroll-project-tagline">
-              Curated arXiv channels with the same visual language as the main site.
-            </p>
           </div>
         </div>
         <div className="scroll-project-actions">
