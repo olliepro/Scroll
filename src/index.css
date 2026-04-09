@@ -127,16 +127,6 @@
     margin-left: auto;
   }
 
-  .scroll-project-actions--menu-open {
-    z-index: 30;
-  }
-
-  .scroll-project-actions--menu-open > .scroll-menu-toggle,
-  .scroll-project-actions--menu-open > .scroll-home-link {
-    position: relative;
-    z-index: 2;
-  }
-
   .scroll-project-measure {
     position: absolute;
     visibility: hidden;
@@ -228,43 +218,68 @@
   }
 
   .scroll-project-backdrop {
-    position: fixed;
+    position: absolute;
     inset: 0;
     border: 0;
     background: rgba(3, 6, 12, 0.82);
-    backdrop-filter: blur(22px) brightness(0.36) saturate(0.65);
-    -webkit-backdrop-filter: blur(22px) brightness(0.36) saturate(0.65);
+    backdrop-filter: blur(24px) brightness(0.28) saturate(0.6);
+    -webkit-backdrop-filter: blur(24px) brightness(0.28) saturate(0.6);
     cursor: default;
     z-index: 0;
   }
 
-  .scroll-project-menu {
-    position: absolute;
-    top: calc(100% + 0.55rem);
-    right: 2.9rem;
-    min-width: 11rem;
-    display: grid;
-    gap: 0.35rem;
-    padding: 0.55rem;
-    border: 1px solid rgba(120, 138, 177, 0.38);
-    border-radius: 0.9rem;
-    background: linear-gradient(165deg, rgba(15, 19, 32, 0.98), rgba(22, 30, 47, 0.98));
-    box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
-    z-index: 3;
+  .scroll-project-menu-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    justify-content: flex-end;
+    padding: 1rem;
   }
 
-  .scroll-project-menu-item {
-    border: 1px solid transparent;
-    border-radius: 0.7rem;
+  .scroll-project-menu-panel {
+    position: relative;
+    z-index: 1;
+    width: min(24rem, 100%);
+    min-height: calc(100dvh - 2rem);
+    display: grid;
+    align-content: start;
+    gap: 0.55rem;
+    padding: 1rem;
+    border: 1px solid rgba(120, 138, 177, 0.3);
+    border-radius: 1.15rem;
+    background:
+      radial-gradient(circle at 18% 14%, rgba(229, 77, 103, 0.18), transparent 28%),
+      linear-gradient(165deg, rgba(12, 17, 29, 0.96), rgba(18, 25, 40, 0.97));
+    box-shadow: 0 32px 80px rgba(0, 0, 0, 0.52);
+  }
+
+  .scroll-project-menu-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.1rem 0 0.35rem;
+  }
+
+  .scroll-project-menu-kicker {
+    margin: 0;
+    color: #e79ca9;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .scroll-project-menu-close {
+    width: 2.4rem;
+    height: 2.4rem;
+    border: 1px solid #2b3447;
+    border-radius: 999px;
     background: rgba(255, 255, 255, 0.04);
     color: #d8e2fd;
-    min-height: 2.5rem;
-    padding: 0.62rem 0.8rem;
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    font-size: 0.88rem;
-    font-weight: 600;
+    display: grid;
+    place-items: center;
     cursor: pointer;
     transition:
       transform 160ms ease,
@@ -273,11 +288,53 @@
       color 160ms ease;
   }
 
+  .scroll-project-menu-close:hover {
+    transform: translateY(-1px);
+    border-color: #e54d67;
+    background: rgba(229, 77, 103, 0.13);
+    color: #ffffff;
+  }
+
+  .scroll-project-menu-item {
+    border: 1px solid transparent;
+    border-radius: 0.9rem;
+    background: rgba(255, 255, 255, 0.04);
+    color: #d8e2fd;
+    min-height: 3rem;
+    width: 100%;
+    padding: 0.82rem 0.95rem;
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 0.55rem;
+    font-size: 0.94rem;
+    font-weight: 600;
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      transform 160ms ease,
+      border-color 160ms ease,
+      background 160ms ease,
+      color 160ms ease;
+  }
+
+  .scroll-project-menu-item--primary {
+    border-color: rgba(229, 77, 103, 0.4);
+    background: linear-gradient(135deg, rgba(229, 77, 103, 0.82), rgba(78, 102, 177, 0.82));
+    box-shadow: 0 16px 34px rgba(10, 14, 24, 0.22);
+    color: #ffffff;
+  }
+
   .scroll-project-menu-item:hover {
     transform: translateY(-1px);
     border-color: #e54d67;
     background: rgba(229, 77, 103, 0.13);
     color: #ffffff;
+  }
+
+  .scroll-project-menu-item--primary:hover {
+    background: linear-gradient(135deg, rgba(229, 77, 103, 0.92), rgba(78, 102, 177, 0.92));
   }
 
   @media (max-width: 720px) {

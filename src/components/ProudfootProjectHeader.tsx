@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { KeyRound, Plus, Search } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Home, KeyRound, Plus, Search, X } from "lucide-react";
 
 type ProudfootProjectHeaderProps = {
   logoUrl: string;
@@ -90,6 +91,89 @@ function HeaderActionButtons({ actions }: { actions: HeaderAction[] }) {
   );
 }
 
+function HeaderMenuItems({
+  actions,
+  onCloseMenu,
+}: {
+  actions: HeaderAction[];
+  onCloseMenu: () => void;
+}) {
+  return (
+    <>
+      <a
+        className="scroll-project-menu-item"
+        href="/"
+        onClick={onCloseMenu}
+        role="menuitem"
+      >
+        <Home className="h-4 w-4" />
+        Home
+      </a>
+      {actions.map((action) => {
+        const Icon = action.icon;
+        return (
+          <button
+            key={action.label}
+            className={[
+              "scroll-project-menu-item",
+              action.tone === "primary" ? "scroll-project-menu-item--primary" : "",
+            ]
+              .filter(Boolean)
+              .join(" ")}
+            onClick={() => {
+              onCloseMenu();
+              action.onClick();
+            }}
+            role="menuitem"
+            type="button"
+          >
+            <Icon className="h-4 w-4" />
+            {action.label}
+          </button>
+        );
+      })}
+    </>
+  );
+}
+
+function HeaderMenuOverlay({
+  actions,
+  onCloseMenu,
+}: {
+  actions: HeaderAction[];
+  onCloseMenu: () => void;
+}) {
+  return createPortal(
+    <div className="scroll-project-menu-overlay" role="presentation">
+      <button
+        aria-label="Close project actions"
+        className="scroll-project-backdrop"
+        onClick={onCloseMenu}
+        type="button"
+      />
+      <div
+        aria-label="Project actions"
+        className="scroll-project-menu-panel"
+        role="menu"
+      >
+        <div className="scroll-project-menu-header">
+          <p className="scroll-project-menu-kicker">Project Actions</p>
+          <button
+            aria-label="Close project actions"
+            className="scroll-project-menu-close"
+            onClick={onCloseMenu}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+        <HeaderMenuItems actions={actions} onCloseMenu={onCloseMenu} />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
 /**
  * Renders the site-aligned header for the Scroll project page.
  *
@@ -113,7 +197,6 @@ export function ProudfootProjectHeader({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const brandRef = useRef<HTMLDivElement | null>(null);
   const actionsMeasureRef = useRef<HTMLDivElement | null>(null);
-  const menuRef = useRef<HTMLDivElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const actions = useMemo<HeaderAction[]>(
     () => [
@@ -149,19 +232,12 @@ export function ProudfootProjectHeader({
   useEffect(() => {
     if (!menuOpen) return;
 
-    function handlePointerDown(event: MouseEvent) {
-      if (menuRef.current?.contains(event.target as Node)) return;
-      setMenuOpen(false);
-    }
-
     function handleEscape(event: KeyboardEvent) {
       if (event.key === "Escape") setMenuOpen(false);
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
     window.addEventListener("keydown", handleEscape);
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
       window.removeEventListener("keydown", handleEscape);
     };
   }, [menuOpen]);
@@ -209,18 +285,9 @@ export function ProudfootProjectHeader({
           ]
             .filter(Boolean)
             .join(" ")}
-          ref={menuRef}
         >
           {isCompact ? (
             <>
-              {menuOpen && (
-                <button
-                  aria-label="Close project actions"
-                  className="scroll-project-backdrop"
-                  onClick={() => setMenuOpen(false)}
-                  type="button"
-                />
-              )}
               <button
                 aria-expanded={menuOpen}
                 aria-haspopup="menu"
@@ -233,40 +300,7 @@ export function ProudfootProjectHeader({
                   menu
                 </span>
               </button>
-              <a className="scroll-home-link" href="/" aria-label="Home" title="Home">
-                <svg viewBox="0 0 24 24" aria-hidden="true">
-                  <path
-                    d="M4 10.5 12 4l8 6.5V20h-5.5v-5h-5v5H4z"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth="1.8"
-                  />
-                </svg>
-              </a>
-              {menuOpen && (
-                <div className="scroll-project-menu" role="menu">
-                  {actions.map((action) => {
-                    const Icon = action.icon;
-                    return (
-                      <button
-                        key={action.label}
-                        className="scroll-project-menu-item"
-                        onClick={() => {
-                          setMenuOpen(false);
-                          action.onClick();
-                        }}
-                        role="menuitem"
-                        type="button"
-                      >
-                        <Icon className="h-4 w-4" />
-                        {action.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
+              {menuOpen && <HeaderMenuOverlay actions={actions} onCloseMenu={() => setMenuOpen(false)} />}
             </>
           ) : (
             <>
