@@ -1,4 +1,5 @@
 import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart, X } from "lucide-react";
 import type { ArxivEntry, OrgInfo } from "../types";
@@ -46,6 +47,70 @@ type PaperCardProps = {
   orgs?: OrgInfo[];
   showAltmetricBadge?: boolean;
 };
+
+type FullAbstractOverlayProps = {
+  renderedSummary: string;
+  renderedTitle: string;
+  onClose: () => void;
+};
+
+/**
+ * Renders the full-abstract reader as a body-level portal so it stays above the app chrome on iOS.
+ *
+ * @param props - Rendered title/summary HTML plus the close callback.
+ * @returns A fullscreen sheet mounted on `document.body`.
+ */
+function FullAbstractOverlay({
+  renderedSummary,
+  renderedTitle,
+  onClose,
+}: FullAbstractOverlayProps) {
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] bg-black/70 backdrop-blur-sm flex justify-end overflow-hidden"
+      style={{ height: "calc(var(--vh, 1vh) * 100)" }}
+      onWheel={(event) => event.stopPropagation()}
+      onTouchStart={(event) => event.stopPropagation()}
+      onTouchMove={(event) => event.stopPropagation()}
+      onTouchEnd={(event) => event.stopPropagation()}
+    >
+      <motion.div
+        initial={{ x: "100%" }}
+        animate={{ x: 0 }}
+        exit={{ x: "100%" }}
+        transition={{ type: "spring", stiffness: 260, damping: 30 }}
+        className="relative w-full max-w-md bg-[#0f1320] overflow-y-auto"
+        style={{ height: "calc(var(--vh, 1vh) * 100)" }}
+      >
+        <div
+          className="sticky top-0 z-10 flex justify-end px-4 pb-2 bg-[linear-gradient(180deg,rgba(15,19,32,0.96),rgba(15,19,32,0.82),rgba(15,19,32,0))]"
+          style={{ paddingTop: "calc(0.75rem + env(safe-area-inset-top, 0px))" }}
+        >
+          <button
+            className="rounded-md p-1 hover:bg-white/10"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+        <div className="px-6 pb-8 pt-2">
+          <h2
+            className="mb-3 text-xl font-semibold text-white"
+            dangerouslySetInnerHTML={{ __html: renderedTitle }}
+          />
+          <div
+            className="text-sm text-slate-300 whitespace-pre-wrap"
+            dangerouslySetInnerHTML={{ __html: renderedSummary }}
+          />
+        </div>
+      </motion.div>
+    </div>,
+    document.body,
+  );
+}
 
 function PaperCardComponent({
   entry,
@@ -384,38 +449,11 @@ function PaperCardComponent({
       </div>
     </section>
     {showFull && (
-      <div
-        className="fixed inset-0 z-50 bg-black/60 flex justify-end overflow-hidden"
-        style={{ height: "calc(var(--vh, 1vh) * 100)" }}
-        onWheel={(e) => e.stopPropagation()}
-        onTouchStart={(e) => e.stopPropagation()}
-        onTouchMove={(e) => e.stopPropagation()}
-        onTouchEnd={(e) => e.stopPropagation()}
-      >
-        <motion.div
-          initial={{ x: "100%" }}
-          animate={{ x: 0 }}
-          exit={{ x: "100%" }}
-          transition={{ type: "spring", stiffness: 260, damping: 30 }}
-          className="w-full max-w-md bg-[#0f1320] p-6 overflow-y-auto"
-          style={{ height: "calc(var(--vh, 1vh) * 100)" }}
-        >
-          <button
-            className="mb-4 ml-auto rounded-md p-1 hover:bg-white/10"
-            onClick={() => setShowFull(false)}
-          >
-            <X className="h-5 w-5" />
-          </button>
-          <h2
-            className="text-xl font-semibold text-white mb-3"
-            dangerouslySetInnerHTML={{ __html: renderedTitle }}
-          />
-          <div
-            className="text-sm text-slate-300 whitespace-pre-wrap"
-            dangerouslySetInnerHTML={{ __html: renderedSummary }}
-          />
-        </motion.div>
-      </div>
+      <FullAbstractOverlay
+        renderedSummary={renderedSummary}
+        renderedTitle={renderedTitle}
+        onClose={() => setShowFull(false)}
+      />
     )}
   </>
   );
