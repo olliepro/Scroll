@@ -138,8 +138,6 @@ export default function ScrollApp() {
   const orgCacheRef = useRef(orgCache);
   const visibleEntryCountRef = useRef(0);
   const scrollLock = useRef(false);
-  const wheelDeltaRef = useRef(0);
-  const wheelResetTimeout = useRef<number | null>(null);
   const lastPositions = useRef<Record<string, number>>({});
   const restoreScrollTimeout = useRef<number | null>(null);
   const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -165,7 +163,6 @@ export default function ScrollApp() {
     ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 
   const SCROLL_LOCK_MS = 420;
-  const WHEEL_NAVIGATION_THRESHOLD_PX = 140;
 
   useEffect(() => {
     const setVh = () => {
@@ -262,19 +259,10 @@ export default function ScrollApp() {
   const showInlineError = Boolean(error) && visibleEntries.length > 0;
   const showVisibleEntries = !showBlockingLoader && !showBlockingError;
   const orgLoading = orgLoadingCount > 0;
-  const shouldWindowDeck = !isGalleryView && !isTouchDevice;
   const renderedDeckEntries = useMemo(() => {
     if (isGalleryView) return [];
-    if (!shouldWindowDeck) {
-      return visibleEntries.map((entry, index) => ({ entry: entry, index: index }));
-    }
-    const startIndex = Math.max(0, pageIndex - 1);
-    const endIndex = Math.min(visibleEntries.length, pageIndex + 2);
-    return visibleEntries.slice(startIndex, endIndex).map((entry, offset) => ({
-      entry: entry,
-      index: startIndex + offset,
-    }));
-  }, [isGalleryView, pageIndex, shouldWindowDeck, visibleEntries]);
+    return visibleEntries.map((entry, index) => ({ entry: entry, index: index }));
+  }, [isGalleryView, visibleEntries]);
   useEffect(() => {
     visibleEntryCountRef.current = visibleEntries.length;
   }, [visibleEntries.length]);
@@ -288,14 +276,6 @@ export default function ScrollApp() {
   const clearPendingViewTimers = useCallback(() => {
     Object.values(viewTimers.current).forEach(clearTimeout);
     viewTimers.current = {};
-  }, []);
-
-  const resetWheelNavigation = useCallback(() => {
-    wheelDeltaRef.current = 0;
-    if (wheelResetTimeout.current !== null) {
-      window.clearTimeout(wheelResetTimeout.current);
-      wheelResetTimeout.current = null;
-    }
   }, []);
 
   const cancelScheduledCardRestore = useCallback(() => {
@@ -344,7 +324,6 @@ export default function ScrollApp() {
       setError(null);
       clearPendingViewTimers();
       cancelScheduledCardRestore();
-      resetWheelNavigation();
       setPageIndex(0);
       window.requestAnimationFrame(() => {
         containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -367,7 +346,6 @@ export default function ScrollApp() {
     let cancelled = false;
     (async () => {
       cancelScheduledCardRestore();
-      resetWheelNavigation();
       if (cachedFeed?.entries.length) {
         setEntries(cachedFeed.entries);
         setLoadedChannelId(activeChannel.id);
@@ -405,7 +383,6 @@ export default function ScrollApp() {
     return () => {
       cancelled = true;
       cancelScheduledCardRestore();
-      resetWheelNavigation();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id, activeList?.id]);
@@ -495,32 +472,9 @@ export default function ScrollApp() {
 
     const el = containerRef.current;
     if (!el) return;
+    el.style.overflowY = "auto";
     if (isTouchDevice) {
-      el.style.overflowY = "auto";
       el.style.setProperty("-webkit-overflow-scrolling", "touch");
-      return () => {
-        el.style.overflowY = "";
-        el.style.removeProperty("-webkit-overflow-scrolling");
-      };
-    }
-
-    function onWheel(e: WheelEvent) {
-      if (document.body.style.overflow === "hidden") return;
-      if (scrollLock.current) return e.preventDefault();
-      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
-      if (Math.abs(e.deltaY) < 2) return;
-      e.preventDefault();
-      wheelDeltaRef.current += e.deltaY;
-      if (wheelResetTimeout.current !== null) {
-        window.clearTimeout(wheelResetTimeout.current);
-      }
-      wheelResetTimeout.current = window.setTimeout(() => {
-        resetWheelNavigation();
-      }, 160);
-      if (Math.abs(wheelDeltaRef.current) < WHEEL_NAVIGATION_THRESHOLD_PX) return;
-      if (wheelDeltaRef.current > 0) scrollToIndex(pageIndex + 1);
-      else scrollToIndex(pageIndex - 1);
-      resetWheelNavigation();
     }
 
     function onKeyDown(e: KeyboardEvent) {
@@ -537,17 +491,14 @@ export default function ScrollApp() {
       }
     }
 
-    el.style.overflow = "hidden";
-    el.addEventListener("wheel", onWheel, { passive: false });
     window.addEventListener("keydown", onKeyDown as EventListener);
 
       return () => {
-        el.style.overflow = "auto";
-        el.removeEventListener("wheel", onWheel as EventListener);
+        el.style.overflowY = "";
+        el.style.removeProperty("-webkit-overflow-scrolling");
         window.removeEventListener("keydown", onKeyDown as EventListener);
-        resetWheelNavigation();
       };
-  }, [isGalleryView, isTouchDevice, pageIndex, entries?.length, resetWheelNavigation, scrollToIndex]);
+  }, [isGalleryView, isTouchDevice, pageIndex, scrollToIndex]);
 
   function openSaveMenu(entry: ArxivEntry) {
     markRead(entry.arxivId);
@@ -956,9 +907,7 @@ export default function ScrollApp() {
         className={clsx(
           "flex-1 relative",
           isGalleryView && "overflow-y-auto",
-          !isGalleryView &&
-            isTouchDevice &&
-            "overflow-y-auto no-scrollbar snap-y snap-mandatory overscroll-y-contain",
+          !isGalleryView && "overflow-y-auto no-scrollbar snap-y snap-mandatory overscroll-y-contain",
         )}
       >
         {showVisibleEntries && (

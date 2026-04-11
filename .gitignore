@@ -11,6 +11,8 @@ node_modules
 dist
 dist-ssr
 *.local
+.netlify
+deno.lock
 
 # Editor directories and files
 .vscode/*
