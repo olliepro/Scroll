@@ -2,8 +2,6 @@ import type { OrgInfo } from "../types";
 import { fetchArxivResource } from "./arxivProxy";
 
 const ABSTRACT_MARKERS = [
-  ">abstract<",
-  ">abstract.<",
   'id="abstract"',
   'class="ltx_abstract"',
   "###### abstract",
@@ -13,7 +11,16 @@ const DEFAULT_MAX_BYTES = 262_144;
 
 function foundAbstract(buf: Uint8Array): boolean {
   const text = new TextDecoder().decode(buf).toLowerCase();
-  return ABSTRACT_MARKERS.some((m) => text.includes(m));
+  const authorSectionStartIndex = findAuthorSectionStartIndex(text);
+  if (authorSectionStartIndex === null) {
+    return false;
+  }
+
+  const htmlAfterTitle = text.slice(authorSectionStartIndex);
+  return (
+    ABSTRACT_MARKERS.some((marker) => htmlAfterTitle.includes(marker)) ||
+    findAbstractSectionStartIndex(htmlAfterTitle) !== null
+  );
 }
 
 function stripTags(html: string): string {
@@ -23,6 +30,57 @@ function stripTags(html: string): string {
   div.innerHTML = cleaned;
   const text = div.textContent || "";
   return text.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * Finds the end of the paper title heading inside the arXiv HTML article body.
+ *
+ * @param htmlPrefix - Leading HTML bytes from the arXiv HTML page.
+ * @returns The index immediately after the paper title heading, or `null` if not found.
+ *
+ * @example
+ * findAuthorSectionStartIndex('<article><h1 class="ltx_title ltx_title_document">...')
+ * // 59
+ */
+function findAuthorSectionStartIndex(htmlPrefix: string): number | null {
+  const titleMatch =
+    /<h1[^>]*class\s*=\s*"[^"]*ltx_title_document[^"]*"[^>]*>[\s\S]*?<\/h1\s*>/i.exec(
+      htmlPrefix,
+    ) || /<h1[^>]*>[\s\S]*?<\/h1\s*>/i.exec(htmlPrefix);
+
+  if (!titleMatch || titleMatch.index === undefined) {
+    return null;
+  }
+
+  return titleMatch.index + titleMatch[0].length;
+}
+
+/**
+ * Finds the first abstract marker after the title heading within the arXiv article body.
+ *
+ * @param htmlAfterTitle - HTML content after the paper title heading.
+ * @returns The index where the abstract begins relative to `htmlAfterTitle`, or `null`.
+ *
+ * @example
+ * findAbstractSectionStartIndex('<div class="ltx_authors">...<div class="ltx_abstract">')
+ * // 31
+ */
+function findAbstractSectionStartIndex(htmlAfterTitle: string): number | null {
+  const abstractStartCandidates = [
+    />\s*Abstract\s*</i,
+    />\s*Abstract\.\s*</i,
+    /id\s*=\s*"abstract"/i,
+    /class\s*=\s*"[^"]*ltx_abstract[^"]*"/i,
+    /######\s*Abstract/i,
+  ]
+    .map((pattern) => pattern.exec(htmlAfterTitle)?.index)
+    .filter((index): index is number => index !== undefined);
+
+  if (abstractStartCandidates.length === 0) {
+    return null;
+  }
+
+  return Math.min(...abstractStartCandidates);
 }
 
 export async function fetchAuthorTextFromArxivHtml(
@@ -56,23 +114,16 @@ export async function fetchAuthorTextFromArxivHtml(
     const text = await res.text();
     prefix = text.slice(0, maxBytes);
   }
-  const endTitle = prefix.match(/<\/h1\s*>/i);
-  if (!endTitle || endTitle.index === undefined) return "";
-  const start = endTitle.index + endTitle[0].length;
-  const abstractStarts: number[] = [];
-  for (const pat of [
-    />\s*Abstract\s*</i,
-    />\s*Abstract\.\s*</i,
-    /id\s*=\s*"abstract"/i,
-    /class\s*=\s*"[^"]*ltx_abstract[^"]*"/i,
-    /######\s*Abstract/i,
-  ]) {
-    const m = pat.exec(prefix);
-    if (m && m.index !== undefined) abstractStarts.push(m.index);
-  }
-  if (abstractStarts.length === 0) return "";
-  const stop = Math.min(...abstractStarts);
-  const authorHtml = prefix.slice(start, stop);
+
+  const authorSectionStartIndex = findAuthorSectionStartIndex(prefix);
+  if (authorSectionStartIndex === null) return "";
+
+  const htmlAfterTitle = prefix.slice(authorSectionStartIndex);
+  const abstractSectionStartIndex =
+    findAbstractSectionStartIndex(htmlAfterTitle);
+  if (abstractSectionStartIndex === null) return "";
+
+  const authorHtml = htmlAfterTitle.slice(0, abstractSectionStartIndex);
   return stripTags(authorHtml);
 }
 
