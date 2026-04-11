@@ -5,6 +5,8 @@ import type { ArxivEntry, OrgInfo } from "../types";
 import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
 import { AltmetricBadge } from "./AltmetricBadge";
 
+const SEE_MORE_RESERVE_PX = 24;
+
 /**
  * Builds the versionless arXiv identifier Altmetric's badge embed expects.
  *
@@ -16,6 +18,21 @@ import { AltmetricBadge } from "./AltmetricBadge";
  */
 function getAltmetricArxivId(entry: ArxivEntry): string {
   return entry.arxivId.replace(/v\d+$/i, "");
+}
+
+/**
+ * Checks whether the clamped abstract paragraph is visually truncated.
+ *
+ * @param paragraphElement - Rendered abstract paragraph element.
+ * @returns Whether the paragraph content overflows its visible height.
+ *
+ * @example
+ * const isTruncated = isClampedParagraphTruncated(paragraphElement);
+ */
+function isClampedParagraphTruncated(
+  paragraphElement: HTMLParagraphElement,
+): boolean {
+  return paragraphElement.scrollHeight - paragraphElement.clientHeight > 1;
 }
 
 export function PaperCard({
@@ -40,6 +57,7 @@ export function PaperCard({
     status === "read" ? "✔" : status === "viewed" ? "●" : "○";
   const paraRef = useRef<HTMLParagraphElement | null>(null);
   const [lineClamp, setLineClamp] = useState(14);
+  const [showsSeeMore, setShowsSeeMore] = useState(false);
   const [orgsOpen, setOrgsOpen] = useState(false);
   const altmetricArxivId = getAltmetricArxivId(entry);
   const orgIcons = orgs?.filter((o) => o.favicon) ?? [];
@@ -47,7 +65,6 @@ export function PaperCard({
   const orgExtra = shouldCollapse
     ? orgs.length - (orgIcons.length > 0 ? Math.min(5, orgIcons.length) : 1)
     : 0;
-  const seeMoreRef = useRef<HTMLButtonElement | null>(null);
 
   useEffect(() => {
     function calcClamp() {
@@ -55,9 +72,7 @@ export function PaperCard({
       if (!p) return;
       const parent = p.parentElement;
       if (!parent) return;
-      const seeMore = seeMoreRef.current;
-      const reserve = (seeMore?.offsetHeight || 0) + 4;
-      const available = parent.clientHeight - p.offsetTop - reserve;
+      const available = parent.clientHeight - p.offsetTop - SEE_MORE_RESERVE_PX;
       const lh = parseFloat(getComputedStyle(p).lineHeight || "16");
       if (lh > 0) setLineClamp(Math.max(3, Math.floor(available / lh)));
     }
@@ -65,6 +80,15 @@ export function PaperCard({
     window.addEventListener("resize", calcClamp);
     return () => window.removeEventListener("resize", calcClamp);
   }, [entry.summary, orgsOpen]);
+
+  useEffect(() => {
+    const frameId = window.requestAnimationFrame(() => {
+      const paragraphElement = paraRef.current;
+      if (!paragraphElement) return;
+      setShowsSeeMore(isClampedParagraphTruncated(paragraphElement));
+    });
+    return () => window.cancelAnimationFrame(frameId);
+  }, [entry.summary, lineClamp, orgsOpen]);
 
   useEffect(() => {
     if (showFull) {
@@ -281,16 +305,17 @@ export function PaperCard({
               }}
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
             />
-            <button
-              ref={seeMoreRef}
-              onClick={() => {
-                setShowFull(true);
-                onMarkRead();
-              }}
-              className="mt-0.5 text-xs text-rose-200 hover:underline"
-            >
-              See more
-            </button>
+            {showsSeeMore && (
+              <button
+                onClick={() => {
+                  setShowFull(true);
+                  onMarkRead();
+                }}
+                className="mt-0.5 text-xs text-rose-200 hover:underline"
+              >
+                See more
+              </button>
+            )}
           </div>
 
           {/* Bottom metrics bar */}
