@@ -10,9 +10,9 @@ type DeckEntry = {
 type PaperFeedProps = {
   activeList: SavedList | null;
   deckEntries: DeckEntry[];
+  getStatus: (arxivId: string) => "unviewed" | "viewed" | "read";
   isGalleryView: boolean;
   orgCache: Record<string, OrgInfo[]>;
-  statuses: Record<string, "unviewed" | "viewed" | "read">;
   visibleEntries: ArxivEntry[];
   isSaved: (arxivId: string) => boolean;
   markRead: (arxivId: string) => void;
@@ -28,9 +28,9 @@ type PaperFeedProps = {
 export function PaperFeed({
   activeList,
   deckEntries,
+  getStatus,
   isGalleryView,
   orgCache,
-  statuses,
   visibleEntries,
   isSaved,
   markRead,
@@ -49,7 +49,7 @@ export function PaperFeed({
               mode="gallery"
               saved={isSaved(entry.arxivId)}
               onToggleSave={() => openSaveMenu(entry)}
-              status={statuses[entry.arxivId] || "unviewed"}
+              status={getStatus(entry.arxivId)}
               onMarkRead={() => markRead(entry.arxivId)}
               orgs={orgCache[entry.arxivId]}
             />
@@ -68,7 +68,7 @@ export function PaperFeed({
           index={index}
           saved={isSaved(entry.arxivId)}
           onToggleSave={() => openSaveMenu(entry)}
-          status={statuses[entry.arxivId] || "unviewed"}
+          status={getStatus(entry.arxivId)}
           onMarkRead={() => markRead(entry.arxivId)}
           orgs={orgCache[entry.arxivId]}
         />

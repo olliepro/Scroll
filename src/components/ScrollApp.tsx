@@ -53,32 +53,30 @@ import "../styles/no-scrollbar";
 
 const scrollIconUrl = new URL("../assets/scroll.png", import.meta.url).href;
 
+function getStatusKey(arxivId: string): string {
+  return arxivId.replace(/v\d+$/i, "");
+}
+
+function getEntryStatus(
+  statuses: Record<string, "unviewed" | "viewed" | "read">,
+  arxivId: string,
+): "unviewed" | "viewed" | "read" {
+  return statuses[getStatusKey(arxivId)] || statuses[arxivId] || "unviewed";
+}
+
 export default function ScrollApp() {
-  const [channels, setChannels] = useLocalStorage<Channel[]>(
-    LS_CHANNELS,
-    defaultChannels
-  );
-  const [savedLists, setSavedLists] = useLocalStorage<SavedList[]>(
-    LS_LISTS,
-    []
-  );
-  const [activeId, setActiveId] = useLocalStorage<string>(
-    LS_LAST_CHANNEL,
-    channels[0]?.id || "recent-ml"
-  );
+  const [channels, setChannels] = useLocalStorage<Channel[]>(LS_CHANNELS, defaultChannels);
+  const [savedLists, setSavedLists] = useLocalStorage<SavedList[]>(LS_LISTS, []);
+  const [activeId, setActiveId] = useLocalStorage<string>(LS_LAST_CHANNEL, channels[0]?.id || "recent-ml");
   const [entries, setEntries] = useState<ArxivEntry[] | null>(null);
   const [loadedChannelId, setLoadedChannelId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
   const [openaiKey, setOpenaiKey] = useState("");
-  const [openaiKeyStorageMode, setOpenaiKeyStorageMode] = useState<
-    "loading" | "encrypted-browser" | "session-only"
-  >("loading");
+  const [openaiKeyStorageMode, setOpenaiKeyStorageMode] = useState<"loading" | "encrypted-browser" | "session-only">("loading");
   const [orgCache, setOrgCache] = useLocalStorage<Record<string, OrgInfo[]>>(LS_ORG_CACHE, {});
   const [feedCache, setFeedCache] = useLocalStorage<Record<string, FeedCacheEntry>>(LS_FEED_CACHE, {});
   const [orgLoadingCount, setOrgLoadingCount] = useState(0);
-
   const [adding, setAdding] = useState(false);
   const [searching, setSearching] = useState(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(() => {
@@ -140,19 +138,17 @@ export default function ScrollApp() {
   const orgCacheRef = useRef(orgCache);
   const visibleEntryCountRef = useRef(0);
   const scrollLock = useRef(false);
+  const wheelDeltaRef = useRef(0);
+  const wheelResetTimeout = useRef<number | null>(null);
   const lastPositions = useRef<Record<string, number>>({});
   const restoreScrollTimeout = useRef<number | null>(null);
   const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const pendingOrgFetchIds = useRef(new Set<string>());
   const longPressTimeout = useRef<number | null>(null);
   const longPressTriggered = useRef(false);
-  const [statuses, setStatuses] = useLocalStorage<
-    Record<string, "unviewed" | "viewed" | "read">
-  >(LS_STATUSES, {});
+  const [statuses, setStatuses] = useLocalStorage<Record<string, "unviewed" | "viewed" | "read">>(LS_STATUSES, {});
   const statusesRef = useRef(statuses);
-  useEffect(() => {
-    statusesRef.current = statuses;
-  }, [statuses]);
+  useEffect(() => { statusesRef.current = statuses; }, [statuses]);
   useEffect(() => {
     orgCacheRef.current = orgCache;
   }, [orgCache]);
@@ -168,7 +164,8 @@ export default function ScrollApp() {
     typeof window !== "undefined" &&
     ("ontouchstart" in window || navigator.maxTouchPoints > 0);
 
-  const SCROLL_LOCK_MS = 275;
+  const SCROLL_LOCK_MS = 420;
+  const WHEEL_NAVIGATION_THRESHOLD_PX = 140;
 
   useEffect(() => {
     const setVh = () => {
@@ -281,17 +278,26 @@ export default function ScrollApp() {
   useEffect(() => {
     visibleEntryCountRef.current = visibleEntries.length;
   }, [visibleEntries.length]);
+  const entriesForEnrichment = useMemo(() => {
+    if (isGalleryView) return visibleEntries;
+    const startIndex = Math.max(0, pageIndex - 1);
+    const endIndex = Math.min(visibleEntries.length, pageIndex + 2);
+    return visibleEntries.slice(startIndex, endIndex);
+  }, [isGalleryView, pageIndex, visibleEntries]);
 
   const clearPendingViewTimers = useCallback(() => {
     Object.values(viewTimers.current).forEach(clearTimeout);
     viewTimers.current = {};
   }, []);
 
-  /**
-   * Cancels a pending delayed card-position restore.
-   *
-   * @returns Nothing.
-   */
+  const resetWheelNavigation = useCallback(() => {
+    wheelDeltaRef.current = 0;
+    if (wheelResetTimeout.current !== null) {
+      window.clearTimeout(wheelResetTimeout.current);
+      wheelResetTimeout.current = null;
+    }
+  }, []);
+
   const cancelScheduledCardRestore = useCallback(() => {
     if (restoreScrollTimeout.current !== null) {
       window.clearTimeout(restoreScrollTimeout.current);
@@ -299,15 +305,6 @@ export default function ScrollApp() {
     }
   }, []);
 
-  /**
-   * Restores the last visible card position for a channel or saved list.
-   *
-   * @param targetId - Active channel or list identifier whose position is restored.
-   * @returns Nothing.
-   *
-   * @example
-   * scheduleStoredCardRestore(targetId="recent-ml");
-   */
   const scheduleStoredCardRestore = useCallback((targetId: string) => {
     cancelScheduledCardRestore();
     const stored = lastPositions.current[targetId] || 0;
@@ -327,8 +324,10 @@ export default function ScrollApp() {
   useEffect(() => {
     if (!activeChannel || visibleEntries.length === 0) return;
     const count = visibleEntries.filter(
-      (e) =>
-        statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
+      (entry) => {
+        const status = getEntryStatus(statuses, entry.arxivId);
+        return status !== "viewed" && status !== "read";
+      }
     ).length;
     setUnviewedCounts((p) => ({ ...p, [activeChannel.id]: count }));
   }, [activeChannel, statuses, visibleEntries]);
@@ -345,6 +344,7 @@ export default function ScrollApp() {
       setError(null);
       clearPendingViewTimers();
       cancelScheduledCardRestore();
+      resetWheelNavigation();
       setPageIndex(0);
       window.requestAnimationFrame(() => {
         containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
@@ -367,6 +367,7 @@ export default function ScrollApp() {
     let cancelled = false;
     (async () => {
       cancelScheduledCardRestore();
+      resetWheelNavigation();
       if (cachedFeed?.entries.length) {
         setEntries(cachedFeed.entries);
         setLoadedChannelId(activeChannel.id);
@@ -381,13 +382,17 @@ export default function ScrollApp() {
         const res = await fetchArxiv(activeChannel);
         if (cancelled) return;
         clearPendingViewTimers();
-        setEntries(res);
-        setLoadedChannelId(activeChannel.id);
+        if (!cachedFeed?.entries.length) {
+          setEntries(res);
+          setLoadedChannelId(activeChannel.id);
+        }
         setFeedCache((prevCache) => ({
           ...prevCache,
           [activeChannelCacheKey]: createFeedCacheEntry(res),
         }));
-        scheduleStoredCardRestore(activeChannel.id);
+        if (!cachedFeed?.entries.length) {
+          scheduleStoredCardRestore(activeChannel.id);
+        }
       } catch (e: unknown) {
         if (cancelled) return;
         setError(
@@ -400,28 +405,32 @@ export default function ScrollApp() {
     return () => {
       cancelled = true;
       cancelScheduledCardRestore();
+      resetWheelNavigation();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id, activeList?.id]);
 
   useEffect(() => {
     if (visibleEntries.length === 0 || isGalleryView) return;
+    const observerRoot = containerRef.current;
+    if (!observerRoot) return;
 
     const observer = new IntersectionObserver(
       (items) => {
         items.forEach(async (it) => {
           const idx = Number((it.target as HTMLElement).dataset.index);
           const arxivId = visibleEntries[idx]?.arxivId;
-          if (it.isIntersecting && it.intersectionRatio >= 0.95) {
+          if (it.isIntersecting && it.intersectionRatio >= 0.72) {
             setPageIndex(idx);
             if (arxivId) {
               clearTimeout(viewTimers.current[arxivId]);
-              const status = statusesRef.current[arxivId];
+              const status = getEntryStatus(statusesRef.current, arxivId);
               if (status !== "read" && status !== "viewed") {
                 viewTimers.current[arxivId] = setTimeout(() => {
+                  const statusKey = getStatusKey(arxivId);
                   setStatuses((p) => ({
                     ...p,
-                    [arxivId]: p[arxivId] === "read" ? "read" : "viewed",
+                    [statusKey]: p[statusKey] === "read" ? "read" : "viewed",
                   }));
                 }, 2000);
               }
@@ -431,7 +440,7 @@ export default function ScrollApp() {
           }
         });
       },
-      { threshold: [0.95] }
+      { root: observerRoot, threshold: [0.72] }
     );
 
     const cards = containerRef.current?.querySelectorAll("[data-card=true]");
@@ -449,11 +458,11 @@ export default function ScrollApp() {
   }, [isGalleryView, pageIndex]);
 
   useEffect(() => {
-    if (!openaiKey || visibleEntries.length === 0) return;
+    if (!openaiKey || entriesForEnrichment.length === 0) return;
     let cancelled = false;
 
     void loadOrgInfoForEntries({
-      entries: visibleEntries,
+      entries: entriesForEnrichment,
       openAiKey: openaiKey,
       orgCache: orgCacheRef.current,
       pendingArxivIds: pendingOrgFetchIds.current,
@@ -479,7 +488,7 @@ export default function ScrollApp() {
     return () => {
       cancelled = true;
     };
-  }, [openaiKey, setOrgCache, visibleEntries]);
+  }, [entriesForEnrichment, openaiKey, setOrgCache]);
 
   useEffect(() => {
     if (isGalleryView) return;
@@ -498,10 +507,20 @@ export default function ScrollApp() {
     function onWheel(e: WheelEvent) {
       if (document.body.style.overflow === "hidden") return;
       if (scrollLock.current) return e.preventDefault();
-      if (Math.abs(e.deltaY) < 5) return; // ignore tiny
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      if (Math.abs(e.deltaY) < 2) return;
       e.preventDefault();
-      if (e.deltaY > 0) scrollToIndex(pageIndex + 1);
+      wheelDeltaRef.current += e.deltaY;
+      if (wheelResetTimeout.current !== null) {
+        window.clearTimeout(wheelResetTimeout.current);
+      }
+      wheelResetTimeout.current = window.setTimeout(() => {
+        resetWheelNavigation();
+      }, 160);
+      if (Math.abs(wheelDeltaRef.current) < WHEEL_NAVIGATION_THRESHOLD_PX) return;
+      if (wheelDeltaRef.current > 0) scrollToIndex(pageIndex + 1);
       else scrollToIndex(pageIndex - 1);
+      resetWheelNavigation();
     }
 
     function onKeyDown(e: KeyboardEvent) {
@@ -526,8 +545,9 @@ export default function ScrollApp() {
         el.style.overflow = "auto";
         el.removeEventListener("wheel", onWheel as EventListener);
         window.removeEventListener("keydown", onKeyDown as EventListener);
+        resetWheelNavigation();
       };
-  }, [isGalleryView, isTouchDevice, pageIndex, entries?.length, scrollToIndex]);
+  }, [isGalleryView, isTouchDevice, pageIndex, entries?.length, resetWheelNavigation, scrollToIndex]);
 
   function openSaveMenu(entry: ArxivEntry) {
     markRead(entry.arxivId);
@@ -589,7 +609,8 @@ export default function ScrollApp() {
   }
 
   function markRead(id: string) {
-    setStatuses((p) => ({ ...p, [id]: "read" }));
+    const statusKey = getStatusKey(id);
+    setStatuses((p) => ({ ...p, [statusKey]: "read" }));
   }
 
   async function performSearch() {
@@ -606,12 +627,6 @@ export default function ScrollApp() {
     }
   }
 
-  /**
-   * Saves the OpenAI API key using encrypted browser storage when available.
-   *
-   * @param nextApiKey - OpenAI API key submitted from the modal.
-   * @returns Nothing.
-   */
   async function handleSaveOpenAiKey(nextApiKey: string) {
     setOpenaiKey(nextApiKey);
     if (!nextApiKey) {
@@ -632,11 +647,6 @@ export default function ScrollApp() {
     setOpenaiKeyStorageMode("encrypted-browser");
   }
 
-  /**
-   * Clears the OpenAI API key from browser storage and in-memory state.
-   *
-   * @returns Nothing.
-   */
   async function handleClearOpenAiKey() {
     setOpenaiKey("");
     if (!isEncryptedBrowserStorageAvailable()) {
@@ -681,8 +691,10 @@ export default function ScrollApp() {
   const firstUnseenIndex = useMemo(
     () =>
       visibleEntries.findIndex(
-        (e) =>
-          statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
+        (entry) => {
+          const status = getEntryStatus(statuses, entry.arxivId);
+          return status !== "viewed" && status !== "read";
+        }
       ),
     [visibleEntries, statuses]
   );
@@ -703,6 +715,10 @@ export default function ScrollApp() {
       });
     },
     [setActiveId],
+  );
+  const getStatusForEntry = useCallback(
+    (arxivId: string) => getEntryStatus(statuses, arxivId),
+    [statuses],
   );
 
     return (
@@ -950,9 +966,9 @@ export default function ScrollApp() {
             <PaperFeed
               activeList={activeList}
               deckEntries={renderedDeckEntries}
+              getStatus={getStatusForEntry}
               isGalleryView={isGalleryView}
               orgCache={orgCache}
-              statuses={statuses}
               visibleEntries={visibleEntries}
               isSaved={isSaved}
               markRead={markRead}
