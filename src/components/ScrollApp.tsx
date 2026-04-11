@@ -1,8 +1,6 @@
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
   Loader2,
-  Trash2,
-  Bookmark,
   ChevronDown,
 } from "lucide-react";
 import { fetchArxiv, searchArxiv } from "../lib/arxiv";
@@ -17,7 +15,7 @@ import {
   loadOpenAiKeyFromBrowser,
   saveOpenAiKeyToBrowser,
 } from "../lib/openAiKeyStorage";
-import { clsx, tokenizeKeywords } from "../lib/utils";
+import { clsx } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { faviconsForArxivUrl } from "../lib/affiliations";
 import {
@@ -38,10 +36,13 @@ import type {
   OrgInfo,
 } from "../types";
 import { ApiKeyModal } from "./ApiKeyModal";
+import { FeedPickerStrip } from "./FeedPickerStrip";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
 import { ProudfootProjectHeader } from "./ProudfootProjectHeader";
+import { SaveToListModal } from "./SaveToListModal";
 import { SearchModal } from "./SearchModal";
+import { SavedListExportToolbar } from "./SavedListExportToolbar";
 import "../styles/no-scrollbar";
 
 const scrollIconUrl = new URL("../assets/scroll.png", import.meta.url).href;
@@ -502,6 +503,11 @@ export default function ScrollApp() {
     setSaveTarget(entry);
   }
 
+  function closeSaveMenu() {
+    setSaveTarget(null);
+    setNewListName("");
+  }
+
   function togglePaperInList(listId: string) {
     if (!saveTarget) return;
     const base = saveTarget.arxivId.replace(/v\d+$/, "");
@@ -665,163 +671,30 @@ export default function ScrollApp() {
           onOpenApiKeyModal={() => setApiKeyModalOpen(true)}
         />
 
-        {/* Channel strip */}
-        <div className="px-3 py-2 overflow-x-auto no-scrollbar">
-          <div className="flex gap-2">
-            {channels.map((ch) => (
-              <div
-                key={ch.id}
-                className="group flex items-center"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (longPressTriggered.current) return;
-                    setActiveId(ch.id);
-                  }}
-                  onTouchStart={() => startLongPress("channel", ch.id, ch.name)}
-                  onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
-                  onTouchMove={() => cancelLongPress()}
-                  onTouchCancel={() => cancelLongPress()}
-                  title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"} | Categories: ${ch.categories.join(", ") || "—"} | Author: ${ch.author || "—"}`}
-                  className={clsx(
-                    "flex items-center gap-1 pl-2 pr-2 py-1 rounded-full border text-sm whitespace-nowrap transition-colors",
-                    activeId === ch.id
-                      ? "bg-gradient-to-r from-rose-500/30 to-blue-500/30 border-rose-400/40"
-                      : "bg-white/5 border-white/10 hover:bg-white/10"
-                  )}
-                >
-                  <span>{ch.name}</span>
-                  {unviewedCounts[ch.id] > 0 && (
-                    <span className="px-1.5 min-w-[1.25rem] h-5 inline-flex items-center justify-center text-xs rounded-full bg-red-600 text-white">
-                      {unviewedCounts[ch.id]}
-                    </span>
-                  )}
-                </button>
-                <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
-                  <button
-                    type="button"
-                    onClick={() => removeChannel(ch.id)}
-                    className="p-1 rounded-full hover:bg-white/10"
-                    title="Delete"
-                    aria-label={`Delete ${ch.name}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-            {savedLists.length > 0 && (
-              <div className="w-px bg-white/10" aria-hidden="true" />
-            )}
-            {savedLists.map((list) => (
-              <div
-                key={list.id}
-                className="group flex items-center"
-              >
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (longPressTriggered.current) return;
-                    setActiveId(`list:${list.id}`);
-                  }}
-                  onTouchStart={() => startLongPress("list", list.id, list.name)}
-                  onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
-                  onTouchMove={() => cancelLongPress()}
-                  onTouchCancel={() => cancelLongPress()}
-                  className={clsx(
-                    "flex items-center gap-1 pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
-                    activeId === `list:${list.id}`
-                      ? "bg-gradient-to-r from-blue-500/30 to-slate-500/30 border-blue-400/40"
-                      : "bg-blue-500/10 border-blue-400/20 hover:bg-blue-500/20"
-                  )}
-                >
-                  <Bookmark className="h-3.5 w-3.5" />
-                  {list.name}
-                </button>
-                <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
-                  <button
-                    type="button"
-                    onClick={() => removeList(list.id)}
-                    className="p-1 rounded-full hover:bg-white/10"
-                    title="Delete"
-                    aria-label={`Delete ${list.name}`}
-                  >
-                    <Trash2 className="h-3.5 w-3.5" />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
+        <FeedPickerStrip
+          activeId={activeId}
+          channels={channels}
+          longPressTriggeredRef={longPressTriggered}
+          onActivateChannel={setActiveId}
+          onActivateList={(listId) => setActiveId(`list:${listId}`)}
+          onCancelLongPress={cancelLongPress}
+          onRemoveChannel={removeChannel}
+          onRemoveList={removeList}
+          onStartLongPress={startLongPress}
+          savedLists={savedLists}
+          unviewedCounts={unviewedCounts}
+        />
 
       {saveTarget && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4"
-          onClick={() => {
-            setSaveTarget(null);
-            setNewListName("");
-          }}
-        >
-          <div
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-gradient-to-b from-[#141a28] to-[#0f1320] backdrop-blur-xl shadow-lg shadow-black/30 text-white p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-lg font-semibold mb-3 bg-gradient-to-r from-rose-200 via-slate-100 to-blue-200 bg-clip-text text-transparent">
-              Save to List
-            </div>
-            <div className="space-y-2 max-h-60 overflow-y-auto pr-1">
-              {savedLists.map((list) => {
-                const checked = list.papers.some(
-                  (p) =>
-                    p.arxivId === saveTarget.arxivId ||
-                    p.arxivId.replace(/v\d+$/, "") ===
-                      saveTarget.arxivId.replace(/v\d+$/, "")
-                );
-                return (
-                  <label
-                    key={list.id}
-                    className="flex items-center gap-2 text-sm p-1.5 rounded hover:bg-white/10"
-                  >
-                    <input
-                      type="checkbox"
-                      className="accent-rose-500"
-                      checked={checked}
-                      onChange={() => togglePaperInList(list.id)}
-                    />
-                    {list.name}
-                  </label>
-                );
-              })}
-              <div className="flex gap-2 pt-2">
-                <input
-                  value={newListName}
-                  onChange={(e) => setNewListName(e.target.value)}
-                  placeholder="New list name"
-                  className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
-                />
-                <button
-                  disabled={!newListName.trim()}
-                  onClick={createList}
-                  className="px-3 py-1 rounded-md bg-gradient-to-r from-rose-500 to-blue-500 text-sm disabled:opacity-50"
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-            <div className="mt-4 text-right">
-              <button
-                onClick={() => {
-                  setSaveTarget(null);
-                  setNewListName("");
-                }}
-                className="px-3 py-1.5 rounded-md bg-white/10 hover:bg-white/20 text-sm"
-              >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
+        <SaveToListModal
+          newListName={newListName}
+          onClose={closeSaveMenu}
+          onCreateList={createList}
+          onNewListNameChange={setNewListName}
+          onTogglePaperInList={togglePaperInList}
+          savedLists={savedLists}
+          saveTarget={saveTarget}
+        />
       )}
 
       <SearchModal
@@ -1044,20 +917,23 @@ export default function ScrollApp() {
         {!loading && !error && (
           <div className="h-full w-full relative">
             {isGalleryView ? (
-              <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 p-3 pb-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
-                {visibleEntries?.map((e, idx) => (
-                  <PaperCard
-                    key={e.id}
-                    entry={e}
-                    index={idx}
-                    mode="gallery"
-                    saved={isSaved(e.arxivId)}
-                    onToggleSave={() => openSaveMenu(e)}
-                    status={statuses[e.arxivId] || "unviewed"}
-                    onMarkRead={() => markRead(e.arxivId)}
-                    orgs={orgCache[e.arxivId]}
-                  />
-                ))}
+              <div className="flex h-full w-full flex-col">
+                {activeList && <SavedListExportToolbar list={activeList} />}
+                <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-3 p-3 pb-6 md:grid-cols-2 xl:grid-cols-3">
+                  {visibleEntries?.map((e, idx) => (
+                    <PaperCard
+                      key={e.id}
+                      entry={e}
+                      index={idx}
+                      mode="gallery"
+                      saved={isSaved(e.arxivId)}
+                      onToggleSave={() => openSaveMenu(e)}
+                      status={statuses[e.arxivId] || "unviewed"}
+                      onMarkRead={() => markRead(e.arxivId)}
+                      orgs={orgCache[e.arxivId]}
+                    />
+                  ))}
+                </div>
               </div>
             ) : (
               <div className="h-full w-full">
