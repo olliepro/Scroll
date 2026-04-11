@@ -45,3 +45,8 @@ export interface SavedList {
   name: string;
   papers: ArxivEntry[];
 }
+
+export interface FeedCacheEntry {
+  loadedAt: string;
+  entries: ArxivEntry[];
+}

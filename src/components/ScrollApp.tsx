@@ -9,6 +9,11 @@ import {
   Heart,
 } from "lucide-react";
 import { fetchArxiv, searchArxiv } from "../lib/arxiv";
+import {
+  buildFeedCacheKey,
+  createFeedCacheEntry,
+  isFeedCacheFresh,
+} from "../lib/feedCache";
 import { clsx, tokenizeKeywords, renderLaTeX } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { faviconsForArxivUrl } from "../lib/affiliations";
@@ -20,11 +25,13 @@ import {
   LS_STATUSES,
   LS_OPENAI_KEY,
   LS_ORG_CACHE,
+  LS_FEED_CACHE,
   defaultChannels,
 } from "../constants";
 import type {
   Channel,
   ArxivEntry,
+  FeedCacheEntry,
   SavedList,
   OrgInfo,
 } from "../types";
@@ -60,6 +67,10 @@ export default function ScrollApp() {
   const [orgCache, setOrgCache] = useLocalStorage<Record<string, OrgInfo[]>>(
     LS_ORG_CACHE,
     {}
+  );
+  const [feedCache, setFeedCache] = useLocalStorage<Record<string, FeedCacheEntry>>(
+    LS_FEED_CACHE,
+    {},
   );
   const [orgLoading, setOrgLoading] = useState(false);
 
@@ -189,6 +200,27 @@ export default function ScrollApp() {
     () => savedLists.find((l) => `list:${l.id}` === activeId) || null,
     [savedLists, activeId]
   );
+  const activeChannelCacheKey = useMemo(
+    () => (activeChannel ? buildFeedCacheKey(activeChannel) : null),
+    [activeChannel]
+  );
+
+  const clearPendingViewTimers = useCallback(() => {
+    Object.values(viewTimers.current).forEach(clearTimeout);
+    viewTimers.current = {};
+  }, []);
+
+  const restoreStoredCardPosition = useCallback((targetId: string) => {
+    const stored = lastPositions.current[targetId] || 0;
+    setPageIndex(stored);
+    window.setTimeout(() => {
+      const target = containerRef.current?.querySelector(
+        `[data-index="${stored}"]`
+      ) as HTMLElement | null;
+      if (target) target.scrollIntoView({ behavior: "auto", block: "start" });
+      else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
+    }, 0);
+  }, []);
 
   useEffect(() => {
     if (!activeChannel || !entries) return;
@@ -210,45 +242,54 @@ export default function ScrollApp() {
       setLoading(false);
       setError(null);
       setEntries(activeList.papers);
-      Object.values(viewTimers.current).forEach(clearTimeout);
-      viewTimers.current = {};
-      const stored = lastPositions.current[activeId] || 0;
-      setPageIndex(stored);
-      setTimeout(() => {
-        const target = containerRef.current?.querySelector(
-          `[data-index="${stored}"]`
-        ) as HTMLElement | null;
-        if (target) target.scrollIntoView({ behavior: "auto", block: "start" });
-        else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
-      }, 0);
+      clearPendingViewTimers();
+      restoreStoredCardPosition(activeId);
       return;
     }
-    if (!activeChannel) return;
+    if (!activeChannel || !activeChannelCacheKey) return;
+
+    const cachedFeed = feedCache[activeChannelCacheKey];
+    if (isFeedCacheFresh(cachedFeed)) {
+      setLoading(false);
+      setError(null);
+      setEntries(cachedFeed.entries);
+      clearPendingViewTimers();
+      restoreStoredCardPosition(activeChannel.id);
+      return;
+    }
+
+    let cancelled = false;
     (async () => {
+      if (cachedFeed?.entries.length) {
+        setEntries(cachedFeed.entries);
+        restoreStoredCardPosition(activeChannel.id);
+      } else {
+        setEntries(null);
+      }
       setLoading(true);
       setError(null);
       try {
         const res = await fetchArxiv(activeChannel);
-        Object.values(viewTimers.current).forEach(clearTimeout);
-        viewTimers.current = {};
+        if (cancelled) return;
+        clearPendingViewTimers();
         setEntries(res);
-        const stored = lastPositions.current[activeChannel.id] || 0;
-        setPageIndex(stored);
-        setTimeout(() => {
-          const target = containerRef.current?.querySelector(
-            `[data-index="${stored}"]`
-          ) as HTMLElement | null;
-          if (target) target.scrollIntoView({ behavior: "auto", block: "start" });
-          else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
-        }, 0);
+        setFeedCache((prevCache) => ({
+          ...prevCache,
+          [activeChannelCacheKey]: createFeedCacheEntry(res),
+        }));
+        restoreStoredCardPosition(activeChannel.id);
       } catch (e: unknown) {
+        if (cancelled) return;
         setError(
           e instanceof Error ? e.message : "Failed to load papers from arXiv"
         );
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => {
+      cancelled = true;
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id, activeList?.id]);
 
@@ -982,18 +1023,6 @@ export default function ScrollApp() {
         </button>
       )}
 
-      {/* Footer: rate limit + page indicator */}
-      <div className="shrink-0 px-3 py-2 text-xs text-slate-400 flex items-center gap-3 border-t border-white/5 bg-black/40 backdrop-blur-xl">
-        <div>
-          {entries ? (
-            <span>
-              Card {Math.min(pageIndex + 1, entries.length)} / {entries.length}
-            </span>
-          ) : (
-            <span>—</span>
-          )}
-        </div>
-      </div>
       {orgLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
           <img
