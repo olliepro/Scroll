@@ -1,19 +1,28 @@
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart, X } from "lucide-react";
-import { FaXTwitter } from "react-icons/fa6";
-import { FaRedditAlien, FaWikipediaW } from "react-icons/fa";
-import type { AltmetricCounts, ArxivEntry, OrgInfo } from "../types";
+import type { ArxivEntry, OrgInfo } from "../types";
 import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
-import { MetricChip } from "./MetricChip";
+import { AltmetricBadge } from "./AltmetricBadge";
+
+/**
+ * Builds the canonical DOI that arXiv exposes in the "Cite as" field.
+ *
+ * @param entry - Paper metadata from the arXiv feed.
+ * @returns The feed DOI when present, otherwise the versionless arXiv DOI.
+ *
+ * @example
+ * const altmetricDoi = getAltmetricDoi(entry);
+ */
+function getAltmetricDoi(entry: ArxivEntry): string {
+  return entry.doi ?? `10.48550/arXiv.${entry.arxivId.replace(/v\\d+$/i, "")}`;
+}
 
 export function PaperCard({
   entry,
   index,
   saved,
   onToggleSave,
-  altCounts,
-  altStatus,
   status,
   onMarkRead,
   orgs,
@@ -22,8 +31,6 @@ export function PaperCard({
   index: number;
   saved: boolean;
   onToggleSave: () => void;
-  altCounts: AltmetricCounts | null | undefined;
-  altStatus: number | undefined;
   status: "unviewed" | "viewed" | "read";
   onMarkRead: () => void;
   orgs?: OrgInfo[];
@@ -34,6 +41,7 @@ export function PaperCard({
   const paraRef = useRef<HTMLParagraphElement | null>(null);
   const [lineClamp, setLineClamp] = useState(14);
   const [orgsOpen, setOrgsOpen] = useState(false);
+  const altmetricDoi = getAltmetricDoi(entry);
   const orgIcons = orgs?.filter((o) => o.favicon) ?? [];
   const shouldCollapse = !!orgs && orgs.length > 2;
   const orgExtra = shouldCollapse
@@ -287,44 +295,11 @@ export function PaperCard({
 
           {/* Bottom metrics bar */}
           <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-[#0b0d12]/95 via-[#151c2c]/95 to-[#0b0d12]/95">
-            <div className="flex items-center gap-3">
-              {altCounts?.cited_by_tweeters_count &&
-                altCounts.cited_by_tweeters_count > 1 && (
-                  <MetricChip
-                    icon={<FaXTwitter className="h-4 w-4" />}
-                    label="X"
-                    value={altCounts.cited_by_tweeters_count}
-                  />
-                )}
-              {altCounts?.cited_by_rdts_count &&
-                altCounts.cited_by_rdts_count > 1 && (
-                  <MetricChip
-                    icon={<FaRedditAlien className="h-4 w-4" />}
-                    label="Reddit"
-                    value={altCounts.cited_by_rdts_count}
-                  />
-                )}
-              {altCounts?.cited_by_wikipedia_count &&
-                altCounts.cited_by_wikipedia_count > 1 && (
-                  <MetricChip
-                    icon={<FaWikipediaW className="h-4 w-4" />}
-                    label="Wikipedia"
-                    value={altCounts.cited_by_wikipedia_count}
-                  />
-                )}
-              <div className="ml-auto text-[11px] text-slate-400">
-                {altStatus === 404 ? (
-                  <span className="opacity-60">No Social Metrics Yet</span>
-                ) : typeof altCounts?.cited_by_accounts_count === "number" ||
-                  typeof altCounts?.cited_by_posts_count === "number" ? (
-                  <span>
-                    {altCounts?.cited_by_accounts_count ?? "—"} accounts •{" "}
-                    {altCounts?.cited_by_posts_count ?? "—"} posts
-                  </span>
-                ) : (
-                  <span className="opacity-60">Altmetric: fetching…</span>
-                )}
-              </div>
+            <div className="flex min-h-8 items-center justify-between gap-3">
+              <AltmetricBadge doi={altmetricDoi} />
+              <span className="ml-auto text-[11px] text-slate-500">
+                DOI {altmetricDoi}
+              </span>
             </div>
           </div>
         </motion.div>

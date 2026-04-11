@@ -9,7 +9,6 @@ import {
   Heart,
 } from "lucide-react";
 import { fetchArxiv, searchArxiv } from "../lib/arxiv";
-import { fetchAltmetric } from "../lib/altmetric";
 import { clsx, tokenizeKeywords, renderLaTeX } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { faviconsForArxivUrl } from "../lib/affiliations";
@@ -24,10 +23,8 @@ import {
   defaultChannels,
 } from "../constants";
 import type {
-  AltmetricCounts,
   Channel,
   ArxivEntry,
-  RateLimitInfo,
   SavedList,
   OrgInfo,
 } from "../types";
@@ -65,25 +62,6 @@ export default function ScrollApp() {
     {}
   );
   const [orgLoading, setOrgLoading] = useState(false);
-
-  const [altCache, setAltCache] = useState<
-    Record<
-      string,
-      { counts: AltmetricCounts | null; status: number } | undefined
-    >
-  >({});
-  const [rateInfo, setRateInfo] = useState<RateLimitInfo | null>(null);
-  const [rateLimitHoldUntil, setRateLimitHoldUntil] = useState<number | null>(
-    null
-  );
-  const [, forceTick] = useState(0); // seconds countdown re-render
-
-  // Ticker to update the Retry-After countdown UI
-  useEffect(() => {
-    if (!rateLimitHoldUntil) return;
-    const t = setInterval(() => forceTick((x) => x + 1), 1000);
-    return () => clearInterval(t);
-  }, [rateLimitHoldUntil]);
 
   const [adding, setAdding] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -274,7 +252,6 @@ export default function ScrollApp() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id, activeList?.id]);
 
-  // Fetch Altmetrics for the fully visible card, with rate-limit respect
   useEffect(() => {
     if (!entries || entries.length === 0) return;
 
@@ -297,29 +274,6 @@ export default function ScrollApp() {
                 }, 2000);
               }
             }
-
-            const now = Date.now();
-            if (rateLimitHoldUntil && now < rateLimitHoldUntil) return;
-
-            if (arxivId && altCache[arxivId] === undefined) {
-              try {
-                const { counts, rate, status, retryAfterSec } =
-                  await fetchAltmetric(arxivId);
-                setAltCache((p) => ({
-                  ...p,
-                  [arxivId]: { counts, status },
-                }));
-                setRateInfo(rate);
-                if (status === 429 && retryAfterSec) {
-                  setRateLimitHoldUntil(now + retryAfterSec * 1000);
-                }
-              } catch {
-                setAltCache((p) => ({
-                  ...p,
-                  [arxivId]: { counts: null, status: 0 },
-                }));
-              }
-            }
           } else if (arxivId) {
             clearTimeout(viewTimers.current[arxivId]);
           }
@@ -331,7 +285,7 @@ export default function ScrollApp() {
     const cards = containerRef.current?.querySelectorAll("[data-card=true]");
     cards?.forEach((c) => observer.observe(c));
     return () => observer.disconnect();
-  }, [entries, altCache, rateLimitHoldUntil, setStatuses]);
+  }, [entries, setStatuses]);
 
   useEffect(() => {
     lastPositions.current[activeId] = pageIndex;
@@ -1009,8 +963,6 @@ export default function ScrollApp() {
                   index={idx}
                   saved={isSaved(e.arxivId)}
                   onToggleSave={() => openSaveMenu(e)}
-                  altCounts={altCache[e.arxivId]?.counts}
-                  altStatus={altCache[e.arxivId]?.status}
                   status={statuses[e.arxivId] || "unviewed"}
                   onMarkRead={() => markRead(e.arxivId)}
                   orgs={orgCache[e.arxivId]}
@@ -1041,31 +993,6 @@ export default function ScrollApp() {
             <span>—</span>
           )}
         </div>
-
-        {rateLimitHoldUntil && Date.now() < rateLimitHoldUntil ? (
-          <div className="ml-auto">
-            Altmetric paused — retry in{" "}
-            {Math.max(
-              0,
-              Math.ceil((rateLimitHoldUntil - Date.now()) / 1000)
-            )}
-            s
-          </div>
-        ) : rateInfo ? (
-          <div className="ml-auto flex items-center gap-3 opacity-80">
-            {typeof rateInfo.hourlyRemaining === "number" && (
-              <span>
-                Altmetric hourly: {rateInfo.hourlyRemaining}/
-                {rateInfo.hourlyLimit ?? "?"}
-              </span>
-            )}
-            {typeof rateInfo.dailyRemaining === "number" && (
-              <span>
-                Daily: {rateInfo.dailyRemaining}/{rateInfo.dailyLimit ?? "?"}
-              </span>
-            )}
-          </div>
-        ) : null}
       </div>
       {orgLoading && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">

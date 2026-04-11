@@ -10,6 +10,7 @@ export interface Channel {
 export interface ArxivEntry {
   id: string;
   arxivId: string;
+  doi?: string;
   title: string;
   summary: string;
   authors: string[];
