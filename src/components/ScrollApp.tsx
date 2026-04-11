@@ -4,9 +4,6 @@ import {
   Trash2,
   Bookmark,
   ChevronDown,
-  ExternalLink,
-  FileDown,
-  Heart,
 } from "lucide-react";
 import { fetchArxiv, searchArxiv } from "../lib/arxiv";
 import {
@@ -14,7 +11,13 @@ import {
   createFeedCacheEntry,
   isFeedCacheFresh,
 } from "../lib/feedCache";
-import { clsx, tokenizeKeywords, renderLaTeX } from "../lib/utils";
+import {
+  clearOpenAiKeyFromBrowser,
+  isEncryptedBrowserStorageAvailable,
+  loadOpenAiKeyFromBrowser,
+  saveOpenAiKeyToBrowser,
+} from "../lib/openAiKeyStorage";
+import { clsx, tokenizeKeywords } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { faviconsForArxivUrl } from "../lib/affiliations";
 import {
@@ -23,7 +26,6 @@ import {
   LS_LISTS,
   LS_LAST_CHANNEL,
   LS_STATUSES,
-  LS_OPENAI_KEY,
   LS_ORG_CACHE,
   LS_FEED_CACHE,
   defaultChannels,
@@ -35,9 +37,11 @@ import type {
   SavedList,
   OrgInfo,
 } from "../types";
+import { ApiKeyModal } from "./ApiKeyModal";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
 import { ProudfootProjectHeader } from "./ProudfootProjectHeader";
+import { SearchModal } from "./SearchModal";
 import "../styles/no-scrollbar";
 
 const scrollIconUrl = new URL("../assets/scroll.png", import.meta.url).href;
@@ -60,22 +64,20 @@ export default function ScrollApp() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const [openaiKey, setOpenaiKey] = useLocalStorage<string>(
-    LS_OPENAI_KEY,
-    ""
-  );
-  const [orgCache, setOrgCache] = useLocalStorage<Record<string, OrgInfo[]>>(
-    LS_ORG_CACHE,
-    {}
-  );
-  const [feedCache, setFeedCache] = useLocalStorage<Record<string, FeedCacheEntry>>(
-    LS_FEED_CACHE,
-    {},
-  );
+  const [openaiKey, setOpenaiKey] = useState("");
+  const [openaiKeyStorageMode, setOpenaiKeyStorageMode] = useState<
+    "loading" | "encrypted-browser" | "session-only"
+  >("loading");
+  const [orgCache, setOrgCache] = useLocalStorage<Record<string, OrgInfo[]>>(LS_ORG_CACHE, {});
+  const [feedCache, setFeedCache] = useLocalStorage<Record<string, FeedCacheEntry>>(LS_FEED_CACHE, {});
   const [orgLoading, setOrgLoading] = useState(false);
 
   const [adding, setAdding] = useState(false);
   const [searching, setSearching] = useState(false);
+  const [apiKeyModalOpen, setApiKeyModalOpen] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("modal") === "api-key";
+  });
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [newChannel, setNewChannel] = useState<Channel>({
     id: "",
@@ -91,7 +93,7 @@ export default function ScrollApp() {
   const [searchError, setSearchError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (adding || searching) {
+    if (adding || searching || apiKeyModalOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -99,13 +101,40 @@ export default function ScrollApp() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [adding, searching]);
+  }, [adding, apiKeyModalOpen, searching]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadStoredOpenAiKey() {
+      if (!isEncryptedBrowserStorageAvailable()) {
+        if (!cancelled) setOpenaiKeyStorageMode("session-only");
+        return;
+      }
+
+      try {
+        const storedKey = await loadOpenAiKeyFromBrowser();
+        if (cancelled) return;
+        setOpenaiKey(storedKey);
+        setOpenaiKeyStorageMode("encrypted-browser");
+      } catch {
+        if (!cancelled) setOpenaiKeyStorageMode("session-only");
+      }
+    }
+
+    void loadStoredOpenAiKey();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
+  const activeIdRef = useRef(activeId);
   const scrollLock = useRef(false);
   const touchStartY = useRef<number | null>(null);
   const lastPositions = useRef<Record<string, number>>({});
+  const restoreScrollTimeout = useRef<number | null>(null);
   const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const longPressTimeout = useRef<number | null>(null);
   const longPressTriggered = useRef(false);
@@ -187,11 +216,6 @@ export default function ScrollApp() {
     }
   }
 
-  function promptApiKey() {
-    const key = window.prompt("Enter OpenAI API key", openaiKey || "");
-    if (key !== null) setOpenaiKey(key.trim());
-  }
-
   const activeChannel: Channel | null = useMemo(
     () => channels.find((c) => c.id === activeId) || null,
     [channels, activeId]
@@ -210,17 +234,42 @@ export default function ScrollApp() {
     viewTimers.current = {};
   }, []);
 
-  const restoreStoredCardPosition = useCallback((targetId: string) => {
+  /**
+   * Cancels a pending delayed card-position restore.
+   *
+   * @returns Nothing.
+   */
+  const cancelScheduledCardRestore = useCallback(() => {
+    if (restoreScrollTimeout.current !== null) {
+      window.clearTimeout(restoreScrollTimeout.current);
+      restoreScrollTimeout.current = null;
+    }
+  }, []);
+
+  /**
+   * Restores the last visible card position for a channel or saved list.
+   *
+   * @param targetId - Active channel or list identifier whose position is restored.
+   * @returns Nothing.
+   *
+   * @example
+   * scheduleStoredCardRestore(targetId="recent-ml");
+   */
+  const scheduleStoredCardRestore = useCallback((targetId: string) => {
+    cancelScheduledCardRestore();
     const stored = lastPositions.current[targetId] || 0;
     setPageIndex(stored);
-    window.setTimeout(() => {
+    restoreScrollTimeout.current = window.setTimeout(() => {
       const target = containerRef.current?.querySelector(
         `[data-index="${stored}"]`
       ) as HTMLElement | null;
       if (target) target.scrollIntoView({ behavior: "auto", block: "start" });
       else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
+      restoreScrollTimeout.current = null;
     }, 0);
-  }, []);
+  }, [cancelScheduledCardRestore]);
+
+  useEffect(() => cancelScheduledCardRestore, [cancelScheduledCardRestore]);
 
   useEffect(() => {
     if (!activeChannel || !entries) return;
@@ -243,7 +292,7 @@ export default function ScrollApp() {
       setError(null);
       setEntries(activeList.papers);
       clearPendingViewTimers();
-      restoreStoredCardPosition(activeId);
+      scheduleStoredCardRestore(activeId);
       return;
     }
     if (!activeChannel || !activeChannelCacheKey) return;
@@ -254,15 +303,16 @@ export default function ScrollApp() {
       setError(null);
       setEntries(cachedFeed.entries);
       clearPendingViewTimers();
-      restoreStoredCardPosition(activeChannel.id);
+      scheduleStoredCardRestore(activeChannel.id);
       return;
     }
 
     let cancelled = false;
     (async () => {
+      cancelScheduledCardRestore();
       if (cachedFeed?.entries.length) {
         setEntries(cachedFeed.entries);
-        restoreStoredCardPosition(activeChannel.id);
+        scheduleStoredCardRestore(activeChannel.id);
       } else {
         setEntries(null);
       }
@@ -277,7 +327,7 @@ export default function ScrollApp() {
           ...prevCache,
           [activeChannelCacheKey]: createFeedCacheEntry(res),
         }));
-        restoreStoredCardPosition(activeChannel.id);
+        scheduleStoredCardRestore(activeChannel.id);
       } catch (e: unknown) {
         if (cancelled) return;
         setError(
@@ -289,6 +339,7 @@ export default function ScrollApp() {
     })();
     return () => {
       cancelled = true;
+      cancelScheduledCardRestore();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeChannel?.id, activeList?.id]);
@@ -329,8 +380,12 @@ export default function ScrollApp() {
   }, [entries, setStatuses]);
 
   useEffect(() => {
-    lastPositions.current[activeId] = pageIndex;
-  }, [pageIndex, activeId]);
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
+  useEffect(() => {
+    lastPositions.current[activeIdRef.current] = pageIndex;
+  }, [pageIndex]);
 
   // Fetch affiliations for papers
   useEffect(() => {
@@ -506,6 +561,48 @@ export default function ScrollApp() {
     }
   }
 
+  /**
+   * Saves the OpenAI API key using encrypted browser storage when available.
+   *
+   * @param nextApiKey - OpenAI API key submitted from the modal.
+   * @returns Nothing.
+   */
+  async function handleSaveOpenAiKey(nextApiKey: string) {
+    setOpenaiKey(nextApiKey);
+    if (!nextApiKey) {
+      setOpenaiKeyStorageMode(
+        isEncryptedBrowserStorageAvailable()
+          ? "encrypted-browser"
+          : "session-only",
+      );
+      return;
+    }
+
+    if (!isEncryptedBrowserStorageAvailable()) {
+      setOpenaiKeyStorageMode("session-only");
+      return;
+    }
+
+    await saveOpenAiKeyToBrowser(nextApiKey);
+    setOpenaiKeyStorageMode("encrypted-browser");
+  }
+
+  /**
+   * Clears the OpenAI API key from browser storage and in-memory state.
+   *
+   * @returns Nothing.
+   */
+  async function handleClearOpenAiKey() {
+    setOpenaiKey("");
+    if (!isEncryptedBrowserStorageAvailable()) {
+      setOpenaiKeyStorageMode("session-only");
+      return;
+    }
+
+    await clearOpenAiKeyFromBrowser();
+    setOpenaiKeyStorageMode("encrypted-browser");
+  }
+
   function addChannel(ch: Omit<Channel, "id">) {
     const id =
       ch.name.toLowerCase().replace(/\s+/g, "-") +
@@ -557,7 +654,7 @@ export default function ScrollApp() {
           logoUrl={scrollIconUrl}
           onOpenChannelCreator={() => setAdding(true)}
           onOpenSearch={() => setSearching(true)}
-          onPromptApiKey={promptApiKey}
+          onOpenApiKeyModal={() => setApiKeyModalOpen(true)}
         />
 
         {/* Channel strip */}
@@ -566,34 +663,36 @@ export default function ScrollApp() {
             {channels.map((ch) => (
               <div
                 key={ch.id}
-                className={clsx(
-                  "group flex items-center pl-2 pr-2 py-1 rounded-full border transition-colors",
-                  activeId === ch.id
-                    ? "bg-gradient-to-r from-rose-500/30 to-blue-500/30 border-rose-400/40"
-                    : "bg-white/5 border-white/10 hover:bg-white/10"
-                )}
-                onTouchStart={() => startLongPress("channel", ch.id, ch.name)}
-                onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
-                onTouchMove={() => cancelLongPress()}
-                onTouchCancel={() => cancelLongPress()}
+                className="group flex items-center"
               >
                 <button
+                  type="button"
                   onClick={() => {
                     if (longPressTriggered.current) return;
                     setActiveId(ch.id);
                   }}
+                  onTouchStart={() => startLongPress("channel", ch.id, ch.name)}
+                  onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
+                  onTouchMove={() => cancelLongPress()}
+                  onTouchCancel={() => cancelLongPress()}
                   title={`Keywords: ${tokenizeKeywords(ch.keywords).join(", ") || "—"} | Categories: ${ch.categories.join(", ") || "—"} | Author: ${ch.author || "—"}`}
-                  className="text-sm whitespace-nowrap"
+                  className={clsx(
+                    "flex items-center gap-1 pl-2 pr-2 py-1 rounded-full border text-sm whitespace-nowrap transition-colors",
+                    activeId === ch.id
+                      ? "bg-gradient-to-r from-rose-500/30 to-blue-500/30 border-rose-400/40"
+                      : "bg-white/5 border-white/10 hover:bg-white/10"
+                  )}
                 >
-                  {ch.name}
+                  <span>{ch.name}</span>
+                  {unviewedCounts[ch.id] > 0 && (
+                    <span className="px-1.5 min-w-[1.25rem] h-5 inline-flex items-center justify-center text-xs rounded-full bg-red-600 text-white">
+                      {unviewedCounts[ch.id]}
+                    </span>
+                  )}
                 </button>
-                {unviewedCounts[ch.id] > 0 && (
-                  <span className="ml-1 px-1.5 min-w-[1.25rem] h-5 inline-flex items-center justify-center text-xs rounded-full bg-red-600 text-white">
-                    {unviewedCounts[ch.id]}
-                  </span>
-                )}
                 <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
                   <button
+                    type="button"
                     onClick={() => removeChannel(ch.id)}
                     className="p-1 rounded-full hover:bg-white/10"
                     title="Delete"
@@ -610,29 +709,31 @@ export default function ScrollApp() {
             {savedLists.map((list) => (
               <div
                 key={list.id}
-                className={clsx(
-                  "group flex items-center pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
-                  activeId === `list:${list.id}`
-                    ? "bg-gradient-to-r from-blue-500/30 to-slate-500/30 border-blue-400/40"
-                    : "bg-blue-500/10 border-blue-400/20 hover:bg-blue-500/20"
-                )}
-                onTouchStart={() => startLongPress("list", list.id, list.name)}
-                onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
-                onTouchMove={() => cancelLongPress()}
-                onTouchCancel={() => cancelLongPress()}
+                className="group flex items-center"
               >
                 <button
+                  type="button"
                   onClick={() => {
                     if (longPressTriggered.current) return;
                     setActiveId(`list:${list.id}`);
                   }}
-                  className="flex items-center gap-1"
+                  onTouchStart={() => startLongPress("list", list.id, list.name)}
+                  onTouchEnd={(e) => cancelLongPress(e.nativeEvent)}
+                  onTouchMove={() => cancelLongPress()}
+                  onTouchCancel={() => cancelLongPress()}
+                  className={clsx(
+                    "flex items-center gap-1 pl-2 pr-2 py-1 rounded-full border-dashed border text-sm transition-colors",
+                    activeId === `list:${list.id}`
+                      ? "bg-gradient-to-r from-blue-500/30 to-slate-500/30 border-blue-400/40"
+                      : "bg-blue-500/10 border-blue-400/20 hover:bg-blue-500/20"
+                  )}
                 >
                   <Bookmark className="h-3.5 w-3.5" />
                   {list.name}
                 </button>
                 <div className="overflow-hidden transition-all duration-200 w-0 group-hover:w-7 ml-0 group-hover:ml-1">
                   <button
+                    type="button"
                     onClick={() => removeList(list.id)}
                     className="p-1 rounded-full hover:bg-white/10"
                     title="Delete"
@@ -715,103 +816,35 @@ export default function ScrollApp() {
         </div>
       )}
 
-      {searching && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-y-auto"
-          onClick={() => {
-            setSearching(false);
-            setSearchInput("");
-            setSearchResults([]);
-            setSearchError(null);
-            setSearchLoading(false);
-          }}
-        >
-          <div
-            className="w-full max-w-2xl rounded-2xl border border-white/10 bg-gradient-to-b from-[#141a28] to-[#0f1320] text-white p-4"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-lg font-semibold mb-2">Search Papers</div>
-            <div className="flex gap-2">
-              <input
-                value={searchInput}
-                onChange={(e) => setSearchInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && performSearch()}
-                placeholder="Title or DOI"
-                className="flex-1 bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
-              />
-              <button
-                onClick={performSearch}
-                disabled={!searchInput.trim() || searchLoading}
-                className="px-3 py-2 rounded-md bg-gradient-to-r from-rose-500 to-blue-500 text-sm disabled:opacity-50"
-              >
-                {searchLoading ? "Searching..." : "Search"}
-              </button>
-            </div>
-            {searchError && (
-              <div className="text-sm text-red-500 mt-2">{searchError}</div>
-            )}
-            <div className="mt-4 space-y-4">
-              {searchResults.map((e) => (
-                <div
-                  key={e.id}
-                  className="p-3 rounded-xl border border-white/10 bg-white/5"
-                >
-                  <div
-                    className="font-semibold"
-                    dangerouslySetInnerHTML={{
-                      __html: renderLaTeX(e.title),
-                    }}
-                  />
-                  <div className="text-sm text-slate-400">
-                    {e.authors.join(", ")}
-                  </div>
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    <a
-                      href={e.link}
-                      target="_blank"
-                      rel="noreferrer"
-                      onClick={() => markRead(e.arxivId)}
-                      className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1"
-                    >
-                      <ExternalLink className="h-3.5 w-3.5" /> Open
-                    </a>
-                    {e.pdfUrl && (
-                      <a
-                        href={e.pdfUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => markRead(e.arxivId)}
-                        className="px-2 py-1 text-xs rounded-full bg-white/5 hover:bg-white/10 border border-white/10 flex items-center gap-1"
-                      >
-                        <FileDown className="h-3.5 w-3.5" /> PDF
-                      </a>
-                    )}
-                    <button
-                      onClick={() => openSaveMenu(e)}
-                      className={clsx(
-                        "px-2 py-1 text-xs rounded-full border flex items-center gap-1",
-                        isSaved(e.arxivId)
-                          ? "bg-rose-500/20 border-rose-400 text-rose-100"
-                          : "bg-white/5 hover:bg-white/10 border-white/10"
-                      )}
-                    >
-                      {isSaved(e.arxivId) ? (
-                        <Heart className="h-3.5 w-3.5 fill-rose-400 text-rose-400" />
-                      ) : (
-                        <Heart className="h-3.5 w-3.5" />
-                      )}
-                      {isSaved(e.arxivId) ? "Saved" : "Save"}
-                    </button>
-                  </div>
-                </div>
-              ))}
-              {searchResults.length === 0 && !searchLoading && searchInput && (
-                <div className="text-sm text-slate-400">No results</div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      <SearchModal
+        isOpen={searching}
+        searchInput={searchInput}
+        onSearchInputChange={setSearchInput}
+        onSubmit={performSearch}
+        onClose={() => {
+          setSearching(false);
+          setSearchInput("");
+          setSearchResults([]);
+          setSearchError(null);
+          setSearchLoading(false);
+        }}
+        searchLoading={searchLoading}
+        searchError={searchError}
+        searchResults={searchResults}
+        onOpenSaveMenu={openSaveMenu}
+        onMarkRead={markRead}
+        isSaved={isSaved}
+      />
+
+      <ApiKeyModal
+        isOpen={apiKeyModalOpen}
+        initialApiKey={openaiKey}
+        onClose={() => setApiKeyModalOpen(false)}
+        onSave={handleSaveOpenAiKey}
+        onClear={handleClearOpenAiKey}
+        repoUrl="https://github.com/olliepro/Scroll"
+        storageMode={openaiKeyStorageMode}
+      />
 
       {/* Create Channel modal */}
       {adding && (

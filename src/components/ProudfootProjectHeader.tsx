@@ -6,7 +6,7 @@ type ProudfootProjectHeaderProps = {
   logoUrl: string;
   onOpenChannelCreator: () => void;
   onOpenSearch: () => void;
-  onPromptApiKey: () => void;
+  onOpenApiKeyModal: () => void;
 };
 
 type HeaderAction = {
@@ -185,14 +185,14 @@ function HeaderMenuOverlay({
  *   logoUrl={scrollIconUrl}
  *   onOpenChannelCreator={() => setAdding(true)}
  *   onOpenSearch={() => setSearching(true)}
- *   onPromptApiKey={promptApiKey}
+ *   onOpenApiKeyModal={() => setApiKeyModalOpen(true)}
  * />
  */
 export function ProudfootProjectHeader({
   logoUrl,
   onOpenChannelCreator,
   onOpenSearch,
-  onPromptApiKey,
+  onOpenApiKeyModal,
 }: ProudfootProjectHeaderProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const brandRef = useRef<HTMLDivElement | null>(null);
@@ -200,7 +200,7 @@ export function ProudfootProjectHeader({
   const [menuOpen, setMenuOpen] = useState(false);
   const actions = useMemo<HeaderAction[]>(
     () => [
-      { icon: KeyRound, label: "API Key", onClick: onPromptApiKey },
+      { icon: KeyRound, label: "OpenAI Key", onClick: onOpenApiKeyModal },
       { icon: Search, label: "Search", onClick: onOpenSearch },
       {
         icon: Plus,
@@ -209,7 +209,7 @@ export function ProudfootProjectHeader({
         tone: "primary",
       },
     ],
-    [onOpenChannelCreator, onOpenSearch, onPromptApiKey],
+    [onOpenApiKeyModal, onOpenChannelCreator, onOpenSearch],
   );
   const isCompact = useCompactHeaderLayout({
     containerRef,
