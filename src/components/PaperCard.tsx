@@ -6,16 +6,16 @@ import { clsx, formatDateShort, renderLaTeX } from "../lib/utils";
 import { AltmetricBadge } from "./AltmetricBadge";
 
 /**
- * Builds the canonical DOI that arXiv exposes in the "Cite as" field.
+ * Builds the versionless arXiv identifier Altmetric's badge embed expects.
  *
  * @param entry - Paper metadata from the arXiv feed.
- * @returns The feed DOI when present, otherwise the versionless arXiv DOI.
+ * @returns The versionless arXiv identifier.
  *
  * @example
- * const altmetricDoi = getAltmetricDoi(entry);
+ * const altmetricArxivId = getAltmetricArxivId(entry);
  */
-function getAltmetricDoi(entry: ArxivEntry): string {
-  return entry.doi ?? `10.48550/arXiv.${entry.arxivId.replace(/v\d+$/i, "")}`;
+function getAltmetricArxivId(entry: ArxivEntry): string {
+  return entry.arxivId.replace(/v\d+$/i, "");
 }
 
 export function PaperCard({
@@ -41,7 +41,7 @@ export function PaperCard({
   const paraRef = useRef<HTMLParagraphElement | null>(null);
   const [lineClamp, setLineClamp] = useState(14);
   const [orgsOpen, setOrgsOpen] = useState(false);
-  const altmetricDoi = getAltmetricDoi(entry);
+  const altmetricArxivId = getAltmetricArxivId(entry);
   const orgIcons = orgs?.filter((o) => o.favicon) ?? [];
   const shouldCollapse = !!orgs && orgs.length > 2;
   const orgExtra = shouldCollapse
@@ -296,9 +296,9 @@ export function PaperCard({
           {/* Bottom metrics bar */}
           <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-[#0b0d12]/95 via-[#151c2c]/95 to-[#0b0d12]/95">
             <div className="flex min-h-8 items-center justify-between gap-3">
-              <AltmetricBadge doi={altmetricDoi} />
+              <AltmetricBadge arxivId={altmetricArxivId} />
               <span className="ml-auto text-[11px] text-slate-500">
-                DOI {altmetricDoi}
+                arXiv {altmetricArxivId}
               </span>
             </div>
           </div>

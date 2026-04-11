@@ -9,15 +9,15 @@ declare global {
 /**
  * Renders an Altmetric badge and asks the embed script to hydrate it after React paints.
  *
- * @param doi - DOI used by Altmetric to render the badge.
- * @returns A hydrated Altmetric badge when a DOI exists, otherwise a small fallback label.
+ * @param arxivId - Versionless arXiv identifier used by Altmetric's badge embed.
+ * @returns A hydrated Altmetric badge when an arXiv identifier exists, otherwise a small fallback label.
  *
  * @example
- * <AltmetricBadge doi="10.1038/nature.2012.9872" />
+ * <AltmetricBadge arxivId="1706.03762" />
  */
-export function AltmetricBadge({ doi }: { doi?: string }) {
+export function AltmetricBadge({ arxivId }: { arxivId?: string }) {
   useEffect(() => {
-    if (!doi) return;
+    if (!arxivId) return;
 
     const handle = window.requestAnimationFrame(() => {
       window._altmetric_embed_init?.();
@@ -26,10 +26,10 @@ export function AltmetricBadge({ doi }: { doi?: string }) {
     return () => {
       window.cancelAnimationFrame(handle);
     };
-  }, [doi]);
+  }, [arxivId]);
 
-  if (!doi) {
-    return <span className="text-[11px] text-slate-500">No DOI badge</span>;
+  if (!arxivId) {
+    return <span className="text-[11px] text-slate-500">No arXiv badge</span>;
   }
 
   return (
@@ -37,7 +37,7 @@ export function AltmetricBadge({ doi }: { doi?: string }) {
       className="altmetric-embed"
       data-badge-popover="top"
       data-badge-type="2"
-      data-doi={doi}
+      data-arxiv-id={arxivId}
     />
   );
 }

@@ -33,24 +33,6 @@ function buildArxivQuery(ch: Channel) {
   return `https://export.arxiv.org/api/query?${params.toString()}`;
 }
 
-/**
- * Reads the DOI from an arXiv Atom entry when it is present.
- *
- * @param entry - XML entry node from the arXiv Atom feed.
- * @returns The normalized DOI string, or undefined when the entry has no DOI.
- *
- * @example
- * const doi = extractDoi(entry);
- */
-function extractDoi(entry: Element): string | undefined {
-  const doiText =
-    entry.getElementsByTagName("arxiv:doi")[0]?.textContent ??
-    entry.getElementsByTagNameNS("*", "doi")[0]?.textContent ??
-    "";
-  const doi = doiText.trim().replace(/^https?:\/\/doi\.org\//i, "");
-  return doi || undefined;
-}
-
 function parseArxivFeed(text: string): ArxivEntry[] {
   const parser = new DOMParser();
   const xml = parser.parseFromString(text, "application/xml");
@@ -84,7 +66,6 @@ function parseArxivFeed(text: string): ArxivEntry[] {
     return {
       id,
       arxivId,
-      doi: extractDoi(e),
       title,
       summary,
       authors,
