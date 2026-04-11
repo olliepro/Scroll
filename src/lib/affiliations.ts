@@ -100,7 +100,10 @@ const SYS_INSTRUCTIONS =
   "Return canonical institution names only (e.g., 'Stanford', 'Google DeepMind', 'MIT'). " +
   "Rules: (1) Deduplicate; (2) Drop departments, schools, cities, countries, postal codes, 'team' names, etc; " +
   "(3) Prefer the parent organization (e.g., 'Harvard University' over 'School of Engineering'); " +
-  "(4) Drop email addresses and footnote markers; (5) For uber well-known orgs, you can use the short name or acronym (e.g. 'UC Berkeley', 'MIT', 'Standford'";
+  "(4) Drop email addresses and footnote markers; (5) For uber well-known orgs, you can use the short name or acronym (e.g. 'UC Berkeley', 'MIT', 'Stanford'); " +
+  "(6) If the text does not explicitly provide affiliation information, return an empty organizations list and do not guess. " +
+  "Examples: 'John Smith, Jane Doe' -> []; 'John Smith (OpenAI), Jane Doe (Stanford University)' -> ['OpenAI', 'Stanford University']; " +
+  "'Department of Computer Science, MIT, Cambridge, MA' -> ['MIT'].";
 
 export async function extractOrgsWithOpenAI(
   authorBlockText: string,

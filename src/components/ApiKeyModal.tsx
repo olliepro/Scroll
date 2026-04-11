@@ -239,10 +239,6 @@ export function ApiKeyModal({
           <div className="scroll-api-preview">
             <p className="scroll-api-preview__kicker">Paper Card Preview</p>
             <ApiKeyPreviewCard />
-            <p className="scroll-api-preview__caption">
-              Fake paper. Real visual language. This is what the enrichment
-              looks like once badges land on a card.
-            </p>
           </div>
         </div>
         <div className="scroll-api-form">
