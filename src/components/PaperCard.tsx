@@ -81,8 +81,7 @@ export function PaperCard({
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", stiffness: 120, damping: 18 }}
-            className="relative h-full w-full max-w-sm sm:max-w-md rounded-3xl border border-white/10 overflow-hidden flex flex-col shadow-[0_0_30px_rgba(0,0,0,0.4)]">
-          <div className="absolute inset-0 -z-10 bg-gradient-to-b from-[#1a2334] via-[#121722] to-[#0b0d12]" />
+            className="relative h-full w-full max-w-sm sm:max-w-md rounded-3xl border border-white/10 overflow-hidden flex flex-col bg-gradient-to-b from-[#1a2334] via-[#121722] to-[#0b0d12] shadow-[0_0_30px_rgba(0,0,0,0.4)] [transform:translateZ(0)] [backface-visibility:hidden]">
           {/* Header row */}
           <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-white/5">
             <div className="flex items-center gap-2">
@@ -287,7 +286,7 @@ export function PaperCard({
           </div>
 
           {/* Bottom metrics bar */}
-          <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-black/40 via-[#151c2c]/70 to-black/40 backdrop-blur">
+          <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-[#0b0d12]/95 via-[#151c2c]/95 to-[#0b0d12]/95">
             <div className="flex items-center gap-3">
               {altCounts?.cited_by_tweeters_count &&
                 altCounts.cited_by_tweeters_count > 1 && (
