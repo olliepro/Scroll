@@ -119,6 +119,10 @@
     font-size: 1.5em;
     line-height: 0.8;
     transform: translateY(0.02em);
+    font-family: "STIX Two Text", "Cambria Math", "Times New Roman", "Georgia", serif;
+    font-style: italic;
+    font-weight: 600;
+    letter-spacing: -0.04em;
   }
 
   .scroll-project-tagline {

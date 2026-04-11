@@ -66,7 +66,6 @@ export default function ScrollApp() {
     LS_LAST_CHANNEL,
     channels[0]?.id || "recent-ml"
   );
-
   const [entries, setEntries] = useState<ArxivEntry[] | null>(null);
   const [loadedChannelId, setLoadedChannelId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -99,7 +98,6 @@ export default function ScrollApp() {
   const [searchResults, setSearchResults] = useState<ArxivEntry[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
-
   useEffect(() => {
     if (adding || searching || apiKeyModalOpen) {
       document.body.style.overflow = "hidden";
@@ -142,7 +140,6 @@ export default function ScrollApp() {
   const orgCacheRef = useRef(orgCache);
   const visibleEntryCountRef = useRef(0);
   const scrollLock = useRef(false);
-  const touchStartY = useRef<number | null>(null);
   const lastPositions = useRef<Record<string, number>>({});
   const restoreScrollTimeout = useRef<number | null>(null);
   const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
@@ -198,7 +195,7 @@ export default function ScrollApp() {
         ) as HTMLElement | null;
         if (!target) return;
         scrollLock.current = true;
-        target.scrollIntoView({ behavior: "smooth", block: "start" });
+        el.scrollTo({ top: target.offsetTop, behavior: "smooth" });
         setTimeout(() => {
           scrollLock.current = false;
         }, SCROLL_LOCK_MS);
@@ -268,15 +265,19 @@ export default function ScrollApp() {
   const showInlineError = Boolean(error) && visibleEntries.length > 0;
   const showVisibleEntries = !showBlockingLoader && !showBlockingError;
   const orgLoading = orgLoadingCount > 0;
+  const shouldWindowDeck = !isGalleryView && !isTouchDevice;
   const renderedDeckEntries = useMemo(() => {
     if (isGalleryView) return [];
+    if (!shouldWindowDeck) {
+      return visibleEntries.map((entry, index) => ({ entry: entry, index: index }));
+    }
     const startIndex = Math.max(0, pageIndex - 1);
     const endIndex = Math.min(visibleEntries.length, pageIndex + 2);
     return visibleEntries.slice(startIndex, endIndex).map((entry, offset) => ({
       entry: entry,
       index: startIndex + offset,
     }));
-  }, [isGalleryView, pageIndex, visibleEntries]);
+  }, [isGalleryView, pageIndex, shouldWindowDeck, visibleEntries]);
   useEffect(() => {
     visibleEntryCountRef.current = visibleEntries.length;
   }, [visibleEntries.length]);
@@ -315,7 +316,7 @@ export default function ScrollApp() {
       const target = containerRef.current?.querySelector(
         `[data-index="${stored}"]`
       ) as HTMLElement | null;
-      if (target) target.scrollIntoView({ behavior: "auto", block: "start" });
+      if (target) containerRef.current?.scrollTo({ top: target.offsetTop, behavior: "auto" });
       else containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
       restoreScrollTimeout.current = null;
     }, 0);
@@ -485,6 +486,14 @@ export default function ScrollApp() {
 
     const el = containerRef.current;
     if (!el) return;
+    if (isTouchDevice) {
+      el.style.overflowY = "auto";
+      el.style.setProperty("-webkit-overflow-scrolling", "touch");
+      return () => {
+        el.style.overflowY = "";
+        el.style.removeProperty("-webkit-overflow-scrolling");
+      };
+    }
 
     function onWheel(e: WheelEvent) {
       if (document.body.style.overflow === "hidden") return;
@@ -492,27 +501,6 @@ export default function ScrollApp() {
       if (Math.abs(e.deltaY) < 5) return; // ignore tiny
       e.preventDefault();
       if (e.deltaY > 0) scrollToIndex(pageIndex + 1);
-      else scrollToIndex(pageIndex - 1);
-    }
-
-    function onTouchStart(e: TouchEvent) {
-      if (document.body.style.overflow === "hidden") return;
-      touchStartY.current = e.touches[0]?.clientY ?? null;
-    }
-    function onTouchMove(e: TouchEvent) {
-      if (document.body.style.overflow === "hidden") return;
-      if (touchStartY.current !== null) e.preventDefault(); // block momentum
-    }
-    function onTouchEnd(e: TouchEvent) {
-      if (document.body.style.overflow === "hidden") return;
-      if (scrollLock.current) return;
-      const startY = touchStartY.current;
-      const endY = e.changedTouches[0]?.clientY ?? startY;
-      touchStartY.current = null;
-      if (startY == null || endY == null) return;
-      const dy = startY - endY;
-      if (Math.abs(dy) < 35) return; // require intent
-      if (dy > 0) scrollToIndex(pageIndex + 1);
       else scrollToIndex(pageIndex - 1);
     }
 
@@ -532,20 +520,14 @@ export default function ScrollApp() {
 
     el.style.overflow = "hidden";
     el.addEventListener("wheel", onWheel, { passive: false });
-    el.addEventListener("touchstart", onTouchStart, { passive: false });
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd, { passive: false });
     window.addEventListener("keydown", onKeyDown as EventListener);
 
       return () => {
         el.style.overflow = "auto";
         el.removeEventListener("wheel", onWheel as EventListener);
-        el.removeEventListener("touchstart", onTouchStart as EventListener);
-        el.removeEventListener("touchmove", onTouchMove as EventListener);
-        el.removeEventListener("touchend", onTouchEnd as EventListener);
         window.removeEventListener("keydown", onKeyDown as EventListener);
       };
-  }, [isGalleryView, pageIndex, entries?.length, scrollToIndex]);
+  }, [isGalleryView, isTouchDevice, pageIndex, entries?.length, scrollToIndex]);
 
   function openSaveMenu(entry: ArxivEntry) {
     markRead(entry.arxivId);
@@ -958,6 +940,9 @@ export default function ScrollApp() {
         className={clsx(
           "flex-1 relative",
           isGalleryView && "overflow-y-auto",
+          !isGalleryView &&
+            isTouchDevice &&
+            "overflow-y-auto no-scrollbar snap-y snap-mandatory overscroll-y-contain",
         )}
       >
         {showVisibleEntries && (
