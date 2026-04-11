@@ -38,6 +38,7 @@ function isClampedParagraphTruncated(
 export function PaperCard({
   entry,
   index,
+  mode = "deck",
   saved,
   onToggleSave,
   status,
@@ -46,27 +47,32 @@ export function PaperCard({
 }: {
   entry: ArxivEntry;
   index: number;
+  mode?: "deck" | "gallery";
   saved: boolean;
   onToggleSave: () => void;
   status: "unviewed" | "viewed" | "read";
   onMarkRead: () => void;
   orgs?: OrgInfo[];
 }) {
+  const isGallery = mode === "gallery";
   const [showFull, setShowFull] = useState(false);
   const statusSymbol =
     status === "read" ? "✔" : status === "viewed" ? "●" : "○";
   const paraRef = useRef<HTMLParagraphElement | null>(null);
-  const [lineClamp, setLineClamp] = useState(14);
+  const [dynamicLineClamp, setDynamicLineClamp] = useState(14);
   const [showsSeeMore, setShowsSeeMore] = useState(false);
   const [orgsOpen, setOrgsOpen] = useState(false);
   const altmetricArxivId = getAltmetricArxivId(entry);
   const orgIcons = orgs?.filter((o) => o.favicon) ?? [];
   const shouldCollapse = !!orgs && orgs.length > 2;
+  const lineClamp = isGallery ? 2 : dynamicLineClamp;
   const orgExtra = shouldCollapse
     ? orgs.length - (orgIcons.length > 0 ? Math.min(5, orgIcons.length) : 1)
     : 0;
 
   useEffect(() => {
+    if (isGallery) return;
+
     function calcClamp() {
       const p = paraRef.current;
       if (!p) return;
@@ -74,12 +80,13 @@ export function PaperCard({
       if (!parent) return;
       const available = parent.clientHeight - p.offsetTop - SEE_MORE_RESERVE_PX;
       const lh = parseFloat(getComputedStyle(p).lineHeight || "16");
-      if (lh > 0) setLineClamp(Math.max(3, Math.floor(available / lh)));
+      if (lh > 0) setDynamicLineClamp(Math.max(3, Math.floor(available / lh)));
     }
+
     calcClamp();
     window.addEventListener("resize", calcClamp);
     return () => window.removeEventListener("resize", calcClamp);
-  }, [entry.summary, orgsOpen]);
+  }, [entry.summary, isGallery, orgsOpen]);
 
   useEffect(() => {
     const frameId = window.requestAnimationFrame(() => {
@@ -103,19 +110,39 @@ export function PaperCard({
   return (
     <>
       <section
-        data-card="true"
+        data-card={isGallery ? undefined : "true"}
         data-index={index}
-        className="w-full snap-start relative select-none"
-        style={{ height: "calc(var(--vh, 1vh) * 100 - 124px)" }}
+        className={clsx(
+          "w-full relative select-none",
+          !isGallery && "snap-start",
+        )}
+        style={
+          isGallery ? undefined : { height: "calc(var(--vh, 1vh) * 100 - 124px)" }
+        }
       >
-        <div className="absolute inset-0 p-3 sm:p-6 flex justify-center">
+        <div
+          className={clsx(
+            isGallery
+              ? "h-full w-full"
+              : "absolute inset-0 flex justify-center p-3 sm:p-6",
+          )}
+        >
           <motion.div
             initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", stiffness: 120, damping: 18 }}
-            className="relative h-full w-full max-w-sm sm:max-w-md rounded-3xl border border-white/10 overflow-hidden flex flex-col bg-gradient-to-b from-[#1a2334] via-[#121722] to-[#0b0d12] shadow-[0_0_30px_rgba(0,0,0,0.4)] [transform:translateZ(0)] [backface-visibility:hidden]">
+            className={clsx(
+              "relative w-full rounded-3xl border border-white/10 overflow-hidden flex flex-col bg-gradient-to-b from-[#1a2334] via-[#121722] to-[#0b0d12] shadow-[0_0_30px_rgba(0,0,0,0.4)] [transform:translateZ(0)] [backface-visibility:hidden]",
+              isGallery ? "min-h-full" : "h-full max-w-sm sm:max-w-md",
+            )}
+          >
           {/* Header row */}
-          <div className="p-3 sm:p-4 flex items-center gap-2 border-b border-white/5">
+          <div
+            className={clsx(
+              "flex items-center gap-2 border-b border-white/5",
+              isGallery ? "p-3" : "p-3 sm:p-4",
+            )}
+          >
             <div className="flex items-center gap-2">
               <span
                 title={status}
@@ -175,9 +202,17 @@ export function PaperCard({
           </div>
 
           {/* Title + Authors */}
-          <div className="px-4 pt-4 pb-0 flex-1 overflow-hidden">
+          <div
+            className={clsx(
+              "px-4 pt-4 overflow-hidden",
+              isGallery ? "pb-4" : "flex-1 pb-0",
+            )}
+          >
             <h2
-              className="text-xl sm:text-2xl font-semibold leading-snug text-white"
+              className={clsx(
+                "font-semibold leading-snug text-white",
+                isGallery ? "text-lg sm:text-xl" : "text-xl sm:text-2xl",
+              )}
               dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
             />
             <div className="mt-1 text-sm text-slate-400">
@@ -319,7 +354,12 @@ export function PaperCard({
           </div>
 
           {/* Bottom metrics bar */}
-          <div className="mt-auto p-2 sm:p-3 border-t border-white/5">
+          <div
+            className={clsx(
+              "mt-auto border-t border-white/5",
+              isGallery ? "p-2.5" : "p-2 sm:p-3",
+            )}
+          >
             <div className="flex min-h-8 items-center justify-between gap-3">
               <AltmetricBadge arxivId={altmetricArxivId} />
               <span className="ml-auto text-[11px] text-slate-500">

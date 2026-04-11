@@ -258,13 +258,10 @@ export function ProudfootProjectHeader({
               maskSize: "contain",
             }}
           />
-          <div className="scroll-project-copy">
-            <p className="scroll-project-kicker">Oliver Proudfoot / Projects</p>
-            <h1 className="scroll-project-title">
-              <span className="scroll-project-title-alpha">α</span>
-              <span>Scroll</span>
-            </h1>
-          </div>
+          <h1 className="scroll-project-title">
+            <span className="scroll-project-title-alpha">α</span>
+            <span>Scroll</span>
+          </h1>
         </div>
         <div className="scroll-project-measure" ref={actionsMeasureRef}>
           <HeaderActionButtons actions={actions} />

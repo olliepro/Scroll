@@ -224,6 +224,7 @@ export default function ScrollApp() {
     () => savedLists.find((l) => `list:${l.id}` === activeId) || null,
     [savedLists, activeId]
   );
+  const isGalleryView = activeList !== null;
   const activeChannelCacheKey = useMemo(
     () => (activeChannel ? buildFeedCacheKey(activeChannel) : null),
     [activeChannel]
@@ -292,7 +293,11 @@ export default function ScrollApp() {
       setError(null);
       setEntries(activeList.papers);
       clearPendingViewTimers();
-      scheduleStoredCardRestore(activeId);
+      cancelScheduledCardRestore();
+      setPageIndex(0);
+      window.requestAnimationFrame(() => {
+        containerRef.current?.scrollTo({ top: 0, behavior: "auto" });
+      });
       return;
     }
     if (!activeChannel || !activeChannelCacheKey) return;
@@ -345,7 +350,7 @@ export default function ScrollApp() {
   }, [activeChannel?.id, activeList?.id]);
 
   useEffect(() => {
-    if (!entries || entries.length === 0) return;
+    if (!entries || entries.length === 0 || isGalleryView) return;
 
     const observer = new IntersectionObserver(
       (items) => {
@@ -377,15 +382,16 @@ export default function ScrollApp() {
     const cards = containerRef.current?.querySelectorAll("[data-card=true]");
     cards?.forEach((c) => observer.observe(c));
     return () => observer.disconnect();
-  }, [entries, setStatuses]);
+  }, [entries, isGalleryView, setStatuses]);
 
   useEffect(() => {
     activeIdRef.current = activeId;
   }, [activeId]);
 
   useEffect(() => {
+    if (isGalleryView) return;
     lastPositions.current[activeIdRef.current] = pageIndex;
-  }, [pageIndex]);
+  }, [isGalleryView, pageIndex]);
 
   // Fetch affiliations for papers
   useEffect(() => {
@@ -425,6 +431,8 @@ export default function ScrollApp() {
 
   // Controlled page-by-page scrolling (no multi-skip, snappy)
   useEffect(() => {
+    if (isGalleryView) return;
+
     const el = containerRef.current;
     if (!el) return;
 
@@ -487,7 +495,7 @@ export default function ScrollApp() {
         el.removeEventListener("touchend", onTouchEnd as EventListener);
         window.removeEventListener("keydown", onKeyDown as EventListener);
       };
-  }, [pageIndex, entries?.length, scrollToIndex]);
+  }, [isGalleryView, pageIndex, entries?.length, scrollToIndex]);
 
   function openSaveMenu(entry: ArxivEntry) {
     markRead(entry.arxivId);
@@ -1009,7 +1017,13 @@ export default function ScrollApp() {
       )}
 
       {/* Scroll container */}
-      <div ref={containerRef} className="flex-1 relative">
+      <div
+        ref={containerRef}
+        className={clsx(
+          "flex-1 relative",
+          isGalleryView && "overflow-y-auto",
+        )}
+      >
         {loading && (
           <div className="absolute inset-0 grid place-items-center">
             <div className="flex items-center gap-2 text-slate-400">
@@ -1029,25 +1043,43 @@ export default function ScrollApp() {
 
         {!loading && !error && (
           <div className="h-full w-full relative">
-            <div className="h-full w-full">
-              {visibleEntries?.map((e, idx) => (
-                <PaperCard
-                  key={e.id}
-                  entry={e}
-                  index={idx}
-                  saved={isSaved(e.arxivId)}
-                  onToggleSave={() => openSaveMenu(e)}
-                  status={statuses[e.arxivId] || "unviewed"}
-                  onMarkRead={() => markRead(e.arxivId)}
-                  orgs={orgCache[e.arxivId]}
-                />
-              ))}
-            </div>
+            {isGalleryView ? (
+              <div className="mx-auto grid max-w-7xl grid-cols-1 gap-3 p-3 pb-6 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                {visibleEntries?.map((e, idx) => (
+                  <PaperCard
+                    key={e.id}
+                    entry={e}
+                    index={idx}
+                    mode="gallery"
+                    saved={isSaved(e.arxivId)}
+                    onToggleSave={() => openSaveMenu(e)}
+                    status={statuses[e.arxivId] || "unviewed"}
+                    onMarkRead={() => markRead(e.arxivId)}
+                    orgs={orgCache[e.arxivId]}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="h-full w-full">
+                {visibleEntries?.map((e, idx) => (
+                  <PaperCard
+                    key={e.id}
+                    entry={e}
+                    index={idx}
+                    saved={isSaved(e.arxivId)}
+                    onToggleSave={() => openSaveMenu(e)}
+                    status={statuses[e.arxivId] || "unviewed"}
+                    onMarkRead={() => markRead(e.arxivId)}
+                    orgs={orgCache[e.arxivId]}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
 
-      {firstUnseenIndex >= 0 && firstUnseenIndex !== pageIndex && (
+      {!isGalleryView && firstUnseenIndex >= 0 && firstUnseenIndex !== pageIndex && (
         <button
           className="fixed bottom-20 right-4 z-20 px-3 py-1.5 rounded-full bg-rose-500 hover:bg-rose-600 text-sm shadow-lg shadow-black/30"
           onClick={() => scrollToIndex(firstUnseenIndex)}
