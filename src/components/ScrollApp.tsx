@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import {
-  Loader2,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useCallback,
+  startTransition,
+} from "react";
+import {
   ChevronDown,
 } from "lucide-react";
 import { fetchArxiv, searchArxiv } from "../lib/arxiv";
@@ -17,7 +23,6 @@ import {
 } from "../lib/openAiKeyStorage";
 import { clsx } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
-import { faviconsForArxivUrl } from "../lib/affiliations";
 import {
   CATEGORY_LABELS,
   LS_CHANNELS,
@@ -35,8 +40,10 @@ import type {
   SavedList,
   OrgInfo,
 } from "../types";
+import { loadOrgInfoForEntries } from "../lib/loadOrgInfoForEntries";
 import { ApiKeyModal } from "./ApiKeyModal";
 import { FeedPickerStrip } from "./FeedPickerStrip";
+import { FeedStateOverlay } from "./FeedStateOverlay";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperCard } from "./PaperCard";
 import { ProudfootProjectHeader } from "./ProudfootProjectHeader";
@@ -62,6 +69,7 @@ export default function ScrollApp() {
   );
 
   const [entries, setEntries] = useState<ArxivEntry[] | null>(null);
+  const [loadedChannelId, setLoadedChannelId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -71,7 +79,7 @@ export default function ScrollApp() {
   >("loading");
   const [orgCache, setOrgCache] = useLocalStorage<Record<string, OrgInfo[]>>(LS_ORG_CACHE, {});
   const [feedCache, setFeedCache] = useLocalStorage<Record<string, FeedCacheEntry>>(LS_FEED_CACHE, {});
-  const [orgLoading, setOrgLoading] = useState(false);
+  const [orgLoadingCount, setOrgLoadingCount] = useState(0);
 
   const [adding, setAdding] = useState(false);
   const [searching, setSearching] = useState(false);
@@ -137,6 +145,7 @@ export default function ScrollApp() {
   const lastPositions = useRef<Record<string, number>>({});
   const restoreScrollTimeout = useRef<number | null>(null);
   const viewTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const pendingOrgFetchIds = useRef(new Set<string>());
   const longPressTimeout = useRef<number | null>(null);
   const longPressTriggered = useRef(false);
   const [statuses, setStatuses] = useLocalStorage<
@@ -176,7 +185,8 @@ export default function ScrollApp() {
     (idx: number) => {
       const el = containerRef.current;
       if (!el) return;
-      const clamped = Math.max(0, Math.min(idx, (entries?.length || 1) - 1));
+      const cardCount = el.querySelectorAll("[data-card=true]").length;
+      const clamped = Math.max(0, Math.min(idx, Math.max(cardCount, 1) - 1));
       const target = el.querySelector(
         `[data-index="${clamped}"]`
       ) as HTMLElement | null;
@@ -188,7 +198,7 @@ export default function ScrollApp() {
         }, SCROLL_LOCK_MS);
       }
     },
-    [entries]
+    []
   );
 
   function startLongPress(
@@ -230,6 +240,28 @@ export default function ScrollApp() {
     () => (activeChannel ? buildFeedCacheKey(activeChannel) : null),
     [activeChannel]
   );
+  const visibleEntries = useMemo(() => {
+    if (activeList) return activeList.papers;
+    if (!activeChannel) return [];
+    if (loadedChannelId === activeChannel.id && entries) return entries;
+    const cachedFeed = activeChannelCacheKey
+      ? feedCache[activeChannelCacheKey]
+      : undefined;
+    return cachedFeed?.entries ?? [];
+  }, [
+    activeChannel,
+    activeChannelCacheKey,
+    activeList,
+    entries,
+    feedCache,
+    loadedChannelId,
+  ]);
+  const showBlockingLoader = loading && visibleEntries.length === 0;
+  const showInlineRefreshIndicator = loading && visibleEntries.length > 0;
+  const showBlockingError = Boolean(error) && visibleEntries.length === 0;
+  const showInlineError = Boolean(error) && visibleEntries.length > 0;
+  const showVisibleEntries = !showBlockingLoader && !showBlockingError;
+  const orgLoading = orgLoadingCount > 0;
 
   const clearPendingViewTimers = useCallback(() => {
     Object.values(viewTimers.current).forEach(clearTimeout);
@@ -274,13 +306,13 @@ export default function ScrollApp() {
   useEffect(() => cancelScheduledCardRestore, [cancelScheduledCardRestore]);
 
   useEffect(() => {
-    if (!activeChannel || !entries) return;
-    const count = entries.filter(
+    if (!activeChannel || visibleEntries.length === 0) return;
+    const count = visibleEntries.filter(
       (e) =>
         statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
     ).length;
     setUnviewedCounts((p) => ({ ...p, [activeChannel.id]: count }));
-  }, [activeChannel, entries, statuses]);
+  }, [activeChannel, statuses, visibleEntries]);
 
   useEffect(() => {
     if (!activeChannel && !activeList && channels[0]) {
@@ -292,7 +324,6 @@ export default function ScrollApp() {
     if (activeList) {
       setLoading(false);
       setError(null);
-      setEntries(activeList.papers);
       clearPendingViewTimers();
       cancelScheduledCardRestore();
       setPageIndex(0);
@@ -308,6 +339,7 @@ export default function ScrollApp() {
       setLoading(false);
       setError(null);
       setEntries(cachedFeed.entries);
+      setLoadedChannelId(activeChannel.id);
       clearPendingViewTimers();
       scheduleStoredCardRestore(activeChannel.id);
       return;
@@ -318,9 +350,11 @@ export default function ScrollApp() {
       cancelScheduledCardRestore();
       if (cachedFeed?.entries.length) {
         setEntries(cachedFeed.entries);
+        setLoadedChannelId(activeChannel.id);
         scheduleStoredCardRestore(activeChannel.id);
       } else {
         setEntries(null);
+        setLoadedChannelId(null);
       }
       setLoading(true);
       setError(null);
@@ -329,6 +363,7 @@ export default function ScrollApp() {
         if (cancelled) return;
         clearPendingViewTimers();
         setEntries(res);
+        setLoadedChannelId(activeChannel.id);
         setFeedCache((prevCache) => ({
           ...prevCache,
           [activeChannelCacheKey]: createFeedCacheEntry(res),
@@ -351,13 +386,13 @@ export default function ScrollApp() {
   }, [activeChannel?.id, activeList?.id]);
 
   useEffect(() => {
-    if (!entries || entries.length === 0 || isGalleryView) return;
+    if (visibleEntries.length === 0 || isGalleryView) return;
 
     const observer = new IntersectionObserver(
       (items) => {
         items.forEach(async (it) => {
           const idx = Number((it.target as HTMLElement).dataset.index);
-          const arxivId = entries[idx]?.arxivId;
+          const arxivId = visibleEntries[idx]?.arxivId;
           if (it.isIntersecting && it.intersectionRatio >= 0.95) {
             setPageIndex(idx);
             if (arxivId) {
@@ -383,7 +418,7 @@ export default function ScrollApp() {
     const cards = containerRef.current?.querySelectorAll("[data-card=true]");
     cards?.forEach((c) => observer.observe(c));
     return () => observer.disconnect();
-  }, [entries, isGalleryView, setStatuses]);
+  }, [isGalleryView, setStatuses, visibleEntries]);
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -394,43 +429,33 @@ export default function ScrollApp() {
     lastPositions.current[activeIdRef.current] = pageIndex;
   }, [isGalleryView, pageIndex]);
 
-  // Fetch affiliations for papers
   useEffect(() => {
-    if (!entries || !openaiKey) return;
-    const missing = entries.filter((e) => orgCache[e.arxivId] === undefined);
-    if (missing.length === 0) return;
+    if (!openaiKey || visibleEntries.length === 0) return;
     let cancelled = false;
-    setOrgLoading(true);
-    Promise.all(
-      missing.map(async (e) => {
-        const htmlUrl = e.link.replace("/abs/", "/html/");
-        try {
-          const orgs = await faviconsForArxivUrl(htmlUrl, openaiKey);
-          return { id: e.arxivId, orgs };
-        } catch {
-          return { id: e.arxivId, orgs: [] as OrgInfo[] };
-        }
-      })
-    )
-      .then((res) => {
+
+    void loadOrgInfoForEntries({
+      entries: visibleEntries,
+      openAiKey: openaiKey,
+      orgCache: orgCache,
+      pendingArxivIds: pendingOrgFetchIds.current,
+      onEntryLoaded: (arxivId, orgs) => {
         if (cancelled) return;
-        setOrgCache((p) => {
-          const next = { ...p };
-          res.forEach((r) => {
-            next[r.id] = r.orgs;
-          });
-          return next;
+        setOrgCache((prevCache) => {
+          if (prevCache[arxivId] !== undefined) return prevCache;
+          return { ...prevCache, [arxivId]: orgs };
         });
-      })
-      .finally(() => {
-        if (!cancelled) setOrgLoading(false);
-      });
+      },
+      onPendingCountChange: (pendingCount) => {
+        setOrgLoadingCount(pendingCount);
+      },
+      shouldCancel: () => cancelled,
+    });
+
     return () => {
       cancelled = true;
     };
-  }, [entries, openaiKey, orgCache, setOrgCache]);
+  }, [openaiKey, orgCache, setOrgCache, visibleEntries]);
 
-  // Controlled page-by-page scrolling (no multi-skip, snappy)
   useEffect(() => {
     if (isGalleryView) return;
 
@@ -647,8 +672,6 @@ export default function ScrollApp() {
     if (activeId === `list:${id}`) setActiveId(channels[0]?.id || "");
   }
 
-  const visibleEntries = useMemo(() => entries || [], [entries]);
-
   const firstUnseenIndex = useMemo(
     () =>
       visibleEntries.findIndex(
@@ -656,6 +679,24 @@ export default function ScrollApp() {
           statuses[e.arxivId] !== "viewed" && statuses[e.arxivId] !== "read"
       ),
     [visibleEntries, statuses]
+  );
+
+  const activateChannel = useCallback(
+    (channelId: string) => {
+      startTransition(() => {
+        setActiveId(channelId);
+      });
+    },
+    [setActiveId],
+  );
+
+  const activateList = useCallback(
+    (listId: string) => {
+      startTransition(() => {
+        setActiveId(`list:${listId}`);
+      });
+    },
+    [setActiveId],
   );
 
     return (
@@ -675,8 +716,8 @@ export default function ScrollApp() {
           activeId={activeId}
           channels={channels}
           longPressTriggeredRef={longPressTriggered}
-          onActivateChannel={setActiveId}
-          onActivateList={(listId) => setActiveId(`list:${listId}`)}
+          onActivateChannel={activateChannel}
+          onActivateList={activateList}
           onCancelLongPress={cancelLongPress}
           onRemoveChannel={removeChannel}
           onRemoveList={removeList}
@@ -727,7 +768,6 @@ export default function ScrollApp() {
         storageMode={openaiKeyStorageMode}
       />
 
-      {/* Create Channel modal */}
       {adding && (
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden"
@@ -889,7 +929,6 @@ export default function ScrollApp() {
         </div>
       )}
 
-      {/* Scroll container */}
       <div
         ref={containerRef}
         className={clsx(
@@ -897,24 +936,7 @@ export default function ScrollApp() {
           isGalleryView && "overflow-y-auto",
         )}
       >
-        {loading && (
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="flex items-center gap-2 text-slate-400">
-              <Loader2 className="h-5 w-5 animate-spin" />
-              <span>Loading newest papers…</span>
-            </div>
-          </div>
-        )}
-        {error && (
-          <div className="absolute inset-0 grid place-items-center">
-            <div className="text-center text-slate-300">
-              <div className="font-semibold mb-1">Couldn’t load arXiv</div>
-              <div className="text-sm text-slate-400">{error}</div>
-            </div>
-          </div>
-        )}
-
-        {!loading && !error && (
+        {showVisibleEntries && (
           <div className="h-full w-full relative">
             {isGalleryView ? (
               <div className="flex h-full w-full flex-col">
@@ -953,6 +975,14 @@ export default function ScrollApp() {
             )}
           </div>
         )}
+        <FeedStateOverlay
+          error={error}
+          orgLoading={orgLoading}
+          showBlockingError={showBlockingError}
+          showBlockingLoader={showBlockingLoader}
+          showInlineError={showInlineError}
+          showInlineRefreshIndicator={showInlineRefreshIndicator}
+        />
       </div>
 
       {!isGalleryView && firstUnseenIndex >= 0 && firstUnseenIndex !== pageIndex && (
@@ -962,16 +992,6 @@ export default function ScrollApp() {
         >
           Jump to latest unseen
         </button>
-      )}
-
-      {orgLoading && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
-          <img
-            src={scrollIconUrl}
-            className="h-32 w-32 animate-pulse"
-            alt="Loading"
-          />
-        </div>
       )}
     </div>
   );
