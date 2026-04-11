@@ -15,7 +15,7 @@ import { AltmetricBadge } from "./AltmetricBadge";
  * const altmetricDoi = getAltmetricDoi(entry);
  */
 function getAltmetricDoi(entry: ArxivEntry): string {
-  return entry.doi ?? `10.48550/arXiv.${entry.arxivId.replace(/v\\d+$/i, "")}`;
+  return entry.doi ?? `10.48550/arXiv.${entry.arxivId.replace(/v\d+$/i, "")}`;
 }
 
 export function PaperCard({

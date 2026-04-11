@@ -625,8 +625,8 @@ export default function ScrollApp() {
                 const checked = list.papers.some(
                   (p) =>
                     p.arxivId === saveTarget.arxivId ||
-                    p.arxivId.replace(/v\\d+$/, "") ===
-                      saveTarget.arxivId.replace(/v\\d+$/, "")
+                    p.arxivId.replace(/v\d+$/, "") ===
+                      saveTarget.arxivId.replace(/v\d+$/, "")
                 );
                 return (
                   <label
