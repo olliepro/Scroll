@@ -8,7 +8,7 @@ type LoadOrgInfoForEntriesOptions = {
   openAiKey: string;
   orgCache: Record<string, OrgInfo[]>;
   pendingArxivIds: Set<string>;
-  onEntryLoaded: (arxivId: string, orgs: OrgInfo[]) => void;
+  onEntriesLoaded: (loadedEntries: Record<string, OrgInfo[]>) => void;
   onPendingCountChange: (pendingCount: number) => void;
   shouldCancel: () => boolean;
 };
@@ -25,7 +25,7 @@ type LoadOrgInfoForEntriesOptions = {
  *   openAiKey,
  *   orgCache,
  *   pendingArxivIds,
- *   onEntryLoaded,
+ *   onEntriesLoaded,
  *   onPendingCountChange,
  *   shouldCancel: () => false,
  * });
@@ -35,7 +35,7 @@ export async function loadOrgInfoForEntries({
   openAiKey,
   orgCache,
   pendingArxivIds,
-  onEntryLoaded,
+  onEntriesLoaded,
   onPendingCountChange,
   shouldCancel,
 }: LoadOrgInfoForEntriesOptions): Promise<void> {
@@ -51,6 +51,24 @@ export async function loadOrgInfoForEntries({
 
   const workQueue = [...queuedEntries];
   const workerCount = Math.min(ORG_FETCH_CONCURRENCY, workQueue.length);
+  let pendingResults: Record<string, OrgInfo[]> = {};
+  let flushHandle: ReturnType<typeof setTimeout> | null = null;
+
+  function flushPendingResults() {
+    if (Object.keys(pendingResults).length === 0) return;
+    const nextResults = pendingResults;
+    pendingResults = {};
+    onEntriesLoaded(nextResults);
+  }
+
+  function schedulePendingResultsFlush() {
+    if (flushHandle) return;
+    flushHandle = setTimeout(() => {
+      flushHandle = null;
+      if (shouldCancel()) return;
+      flushPendingResults();
+    }, 120);
+  }
 
   async function runWorker() {
     while (workQueue.length > 0) {
@@ -70,10 +88,13 @@ export async function loadOrgInfoForEntries({
       }
 
       if (!shouldCancel()) {
-        onEntryLoaded(nextEntry.arxivId, orgs);
+        pendingResults[nextEntry.arxivId] = orgs;
+        schedulePendingResultsFlush();
       }
     }
   }
 
   await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+  if (flushHandle) clearTimeout(flushHandle);
+  if (!shouldCancel()) flushPendingResults();
 }

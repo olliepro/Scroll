@@ -1,10 +1,5 @@
-import { useEffect, useState } from "react";
-
-declare global {
-  interface Window {
-    _altmetric_embed_init?: () => void;
-  }
-}
+import { useEffect, useRef, useState } from "react";
+import { scheduleAltmetricHydration } from "../lib/altmetric";
 
 /**
  * Renders an Altmetric badge and asks the embed script to hydrate it after React paints.
@@ -16,7 +11,9 @@ declare global {
  * <AltmetricBadge arxivId="1706.03762" />
  */
 export function AltmetricBadge({ arxivId }: { arxivId?: string }) {
+  const badgeHostRef = useRef<HTMLDivElement | null>(null);
   const [showsPopover, setShowsPopover] = useState(false);
+  const [isNearViewport, setIsNearViewport] = useState(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
@@ -34,27 +31,42 @@ export function AltmetricBadge({ arxivId }: { arxivId?: string }) {
   }, []);
 
   useEffect(() => {
-    if (!arxivId) return;
+    const badgeHost = badgeHostRef.current;
+    if (!badgeHost || !arxivId) return;
 
-    const handle = window.requestAnimationFrame(() => {
-      window._altmetric_embed_init?.();
-    });
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0];
+        setIsNearViewport(entry?.isIntersecting ?? false);
+      },
+      { rootMargin: "320px 0px" },
+    );
 
-    return () => {
-      window.cancelAnimationFrame(handle);
-    };
-  }, [arxivId, showsPopover]);
+    observer.observe(badgeHost);
+    return () => observer.disconnect();
+  }, [arxivId]);
+
+  useEffect(() => {
+    if (!arxivId || !isNearViewport) return;
+    scheduleAltmetricHydration();
+  }, [arxivId, isNearViewport, showsPopover]);
 
   if (!arxivId) {
     return <span className="text-[11px] text-slate-500">No arXiv badge</span>;
   }
 
   return (
-    <div
-      className="altmetric-embed"
-      data-badge-type="2"
-      data-arxiv-id={arxivId}
-      {...(showsPopover ? { "data-badge-popover": "top" } : {})}
-    />
+    <div ref={badgeHostRef}>
+      {isNearViewport ? (
+        <div
+          className="altmetric-embed"
+          data-badge-type="2"
+          data-arxiv-id={arxivId}
+          {...(showsPopover ? { "data-badge-popover": "top" } : {})}
+        />
+      ) : (
+        <span className="text-[11px] text-slate-500">Badge loading</span>
+      )}
+    </div>
   );
 }

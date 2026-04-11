@@ -45,11 +45,10 @@ import { ApiKeyModal } from "./ApiKeyModal";
 import { FeedPickerStrip } from "./FeedPickerStrip";
 import { FeedStateOverlay } from "./FeedStateOverlay";
 import { KeywordsChipsInput } from "./KeywordsChipsInput";
-import { PaperCard } from "./PaperCard";
+import { PaperFeed } from "./PaperFeed";
 import { ProudfootProjectHeader } from "./ProudfootProjectHeader";
 import { SaveToListModal } from "./SaveToListModal";
 import { SearchModal } from "./SearchModal";
-import { SavedListExportToolbar } from "./SavedListExportToolbar";
 import "../styles/no-scrollbar";
 
 const scrollIconUrl = new URL("../assets/scroll.png", import.meta.url).href;
@@ -140,6 +139,8 @@ export default function ScrollApp() {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [pageIndex, setPageIndex] = useState(0);
   const activeIdRef = useRef(activeId);
+  const orgCacheRef = useRef(orgCache);
+  const visibleEntryCountRef = useRef(0);
   const scrollLock = useRef(false);
   const touchStartY = useRef<number | null>(null);
   const lastPositions = useRef<Record<string, number>>({});
@@ -155,6 +156,9 @@ export default function ScrollApp() {
   useEffect(() => {
     statusesRef.current = statuses;
   }, [statuses]);
+  useEffect(() => {
+    orgCacheRef.current = orgCache;
+  }, [orgCache]);
 
   const [unviewedCounts, setUnviewedCounts] = useState<Record<string, number>>(
     {}
@@ -185,18 +189,20 @@ export default function ScrollApp() {
     (idx: number) => {
       const el = containerRef.current;
       if (!el) return;
-      const cardCount = el.querySelectorAll("[data-card=true]").length;
-      const clamped = Math.max(0, Math.min(idx, Math.max(cardCount, 1) - 1));
-      const target = el.querySelector(
-        `[data-index="${clamped}"]`
-      ) as HTMLElement | null;
-      if (target) {
+      const clamped = Math.max(0, Math.min(idx, visibleEntryCountRef.current - 1));
+      if (visibleEntryCountRef.current === 0) return;
+      setPageIndex(clamped);
+      window.requestAnimationFrame(() => {
+        const target = el.querySelector(
+          `[data-index="${clamped}"]`
+        ) as HTMLElement | null;
+        if (!target) return;
         scrollLock.current = true;
         target.scrollIntoView({ behavior: "smooth", block: "start" });
         setTimeout(() => {
           scrollLock.current = false;
         }, SCROLL_LOCK_MS);
-      }
+      });
     },
     []
   );
@@ -262,6 +268,18 @@ export default function ScrollApp() {
   const showInlineError = Boolean(error) && visibleEntries.length > 0;
   const showVisibleEntries = !showBlockingLoader && !showBlockingError;
   const orgLoading = orgLoadingCount > 0;
+  const renderedDeckEntries = useMemo(() => {
+    if (isGalleryView) return [];
+    const startIndex = Math.max(0, pageIndex - 1);
+    const endIndex = Math.min(visibleEntries.length, pageIndex + 2);
+    return visibleEntries.slice(startIndex, endIndex).map((entry, offset) => ({
+      entry: entry,
+      index: startIndex + offset,
+    }));
+  }, [isGalleryView, pageIndex, visibleEntries]);
+  useEffect(() => {
+    visibleEntryCountRef.current = visibleEntries.length;
+  }, [visibleEntries.length]);
 
   const clearPendingViewTimers = useCallback(() => {
     Object.values(viewTimers.current).forEach(clearTimeout);
@@ -436,13 +454,19 @@ export default function ScrollApp() {
     void loadOrgInfoForEntries({
       entries: visibleEntries,
       openAiKey: openaiKey,
-      orgCache: orgCache,
+      orgCache: orgCacheRef.current,
       pendingArxivIds: pendingOrgFetchIds.current,
-      onEntryLoaded: (arxivId, orgs) => {
+      onEntriesLoaded: (loadedEntries) => {
         if (cancelled) return;
         setOrgCache((prevCache) => {
-          if (prevCache[arxivId] !== undefined) return prevCache;
-          return { ...prevCache, [arxivId]: orgs };
+          const nextEntries = Object.entries(loadedEntries).filter(
+            ([arxivId]) => prevCache[arxivId] === undefined,
+          );
+          if (nextEntries.length === 0) return prevCache;
+          return Object.fromEntries([
+            ...Object.entries(prevCache),
+            ...nextEntries,
+          ]);
         });
       },
       onPendingCountChange: (pendingCount) => {
@@ -454,7 +478,7 @@ export default function ScrollApp() {
     return () => {
       cancelled = true;
     };
-  }, [openaiKey, orgCache, setOrgCache, visibleEntries]);
+  }, [openaiKey, setOrgCache, visibleEntries]);
 
   useEffect(() => {
     if (isGalleryView) return;
@@ -938,41 +962,17 @@ export default function ScrollApp() {
       >
         {showVisibleEntries && (
           <div className="h-full w-full relative">
-            {isGalleryView ? (
-              <div className="flex h-full w-full flex-col">
-                {activeList && <SavedListExportToolbar list={activeList} />}
-                <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-3 p-3 pb-6 md:grid-cols-2 xl:grid-cols-3">
-                  {visibleEntries?.map((e, idx) => (
-                    <PaperCard
-                      key={e.id}
-                      entry={e}
-                      index={idx}
-                      mode="gallery"
-                      saved={isSaved(e.arxivId)}
-                      onToggleSave={() => openSaveMenu(e)}
-                      status={statuses[e.arxivId] || "unviewed"}
-                      onMarkRead={() => markRead(e.arxivId)}
-                      orgs={orgCache[e.arxivId]}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div className="h-full w-full">
-                {visibleEntries?.map((e, idx) => (
-                  <PaperCard
-                    key={e.id}
-                    entry={e}
-                    index={idx}
-                    saved={isSaved(e.arxivId)}
-                    onToggleSave={() => openSaveMenu(e)}
-                    status={statuses[e.arxivId] || "unviewed"}
-                    onMarkRead={() => markRead(e.arxivId)}
-                    orgs={orgCache[e.arxivId]}
-                  />
-                ))}
-              </div>
-            )}
+            <PaperFeed
+              activeList={activeList}
+              deckEntries={renderedDeckEntries}
+              isGalleryView={isGalleryView}
+              orgCache={orgCache}
+              statuses={statuses}
+              visibleEntries={visibleEntries}
+              isSaved={isSaved}
+              markRead={markRead}
+              openSaveMenu={openSaveMenu}
+            />
           </div>
         )}
         <FeedStateOverlay

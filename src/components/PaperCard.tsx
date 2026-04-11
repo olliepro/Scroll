@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { memo, useEffect, useMemo, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { ExternalLink, FileDown, Heart, X } from "lucide-react";
 import type { ArxivEntry, OrgInfo } from "../types";
@@ -35,16 +35,7 @@ function isClampedParagraphTruncated(
   return paragraphElement.scrollHeight - paragraphElement.clientHeight > 1;
 }
 
-export function PaperCard({
-  entry,
-  index,
-  mode = "deck",
-  saved,
-  onToggleSave,
-  status,
-  onMarkRead,
-  orgs,
-}: {
+type PaperCardProps = {
   entry: ArxivEntry;
   index: number;
   mode?: "deck" | "gallery";
@@ -53,7 +44,20 @@ export function PaperCard({
   status: "unviewed" | "viewed" | "read";
   onMarkRead: () => void;
   orgs?: OrgInfo[];
-}) {
+  showAltmetricBadge?: boolean;
+};
+
+function PaperCardComponent({
+  entry,
+  index,
+  mode = "deck",
+  saved,
+  onToggleSave,
+  status,
+  onMarkRead,
+  orgs,
+  showAltmetricBadge = true,
+}: PaperCardProps) {
   const isGallery = mode === "gallery";
   const [showFull, setShowFull] = useState(false);
   const statusSymbol =
@@ -69,6 +73,11 @@ export function PaperCard({
   const orgExtra = shouldCollapse
     ? orgs.length - (orgIcons.length > 0 ? Math.min(5, orgIcons.length) : 1)
     : 0;
+  const renderedTitle = useMemo(() => renderLaTeX(entry.title), [entry.title]);
+  const renderedSummary = useMemo(
+    () => renderLaTeX(entry.summary),
+    [entry.summary],
+  );
 
   useEffect(() => {
     if (isGallery) return;
@@ -213,7 +222,7 @@ export function PaperCard({
                 "font-semibold leading-snug text-white",
                 isGallery ? "text-lg sm:text-xl" : "text-xl sm:text-2xl",
               )}
-              dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
+              dangerouslySetInnerHTML={{ __html: renderedTitle }}
             />
             <div className="mt-1 text-sm text-slate-400">
               {entry.authors.slice(0, 6).join(", ")}
@@ -338,7 +347,7 @@ export function PaperCard({
                 WebkitBoxOrient: "vertical",
                 overflow: "hidden",
               }}
-              dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
+              dangerouslySetInnerHTML={{ __html: renderedSummary }}
             />
             {showsSeeMore && (
               <button
@@ -361,7 +370,11 @@ export function PaperCard({
             )}
           >
             <div className="flex min-h-8 items-center justify-between gap-3">
-              <AltmetricBadge arxivId={altmetricArxivId} />
+              {showAltmetricBadge ? (
+                <AltmetricBadge arxivId={altmetricArxivId} />
+              ) : (
+                <span className="text-[11px] text-slate-500">Badge loading</span>
+              )}
               <span className="ml-auto text-[11px] text-slate-500">
                 arXiv {altmetricArxivId}
               </span>
@@ -395,11 +408,11 @@ export function PaperCard({
           </button>
           <h2
             className="text-xl font-semibold text-white mb-3"
-            dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.title) }}
+            dangerouslySetInnerHTML={{ __html: renderedTitle }}
           />
           <div
             className="text-sm text-slate-300 whitespace-pre-wrap"
-            dangerouslySetInnerHTML={{ __html: renderLaTeX(entry.summary) }}
+            dangerouslySetInnerHTML={{ __html: renderedSummary }}
           />
         </motion.div>
       </div>
@@ -407,3 +420,20 @@ export function PaperCard({
   </>
   );
 }
+
+function arePaperCardPropsEqual(
+  prevProps: PaperCardProps,
+  nextProps: PaperCardProps,
+): boolean {
+  return (
+    prevProps.entry === nextProps.entry &&
+    prevProps.index === nextProps.index &&
+    prevProps.mode === nextProps.mode &&
+    prevProps.saved === nextProps.saved &&
+    prevProps.status === nextProps.status &&
+    prevProps.orgs === nextProps.orgs &&
+    prevProps.showAltmetricBadge === nextProps.showAltmetricBadge
+  );
+}
+
+export const PaperCard = memo(PaperCardComponent, arePaperCardPropsEqual);
