@@ -294,7 +294,7 @@ export function PaperCard({
           </div>
 
           {/* Bottom metrics bar */}
-          <div className="mt-auto p-2 sm:p-3 border-t border-white/5 bg-gradient-to-r from-[#0b0d12]/95 via-[#151c2c]/95 to-[#0b0d12]/95">
+          <div className="mt-auto p-2 sm:p-3 border-t border-white/5">
             <div className="flex min-h-8 items-center justify-between gap-3">
               <AltmetricBadge arxivId={altmetricArxivId} />
               <span className="ml-auto text-[11px] text-slate-500">

@@ -110,6 +110,15 @@
     font-size: clamp(1.05rem, 2vw, 1.35rem);
     line-height: 1.05;
     color: #f4f6fb;
+    display: inline-flex;
+    align-items: baseline;
+    gap: 0.28rem;
+  }
+
+  .scroll-project-title-alpha {
+    font-size: 1.5em;
+    line-height: 0.8;
+    transform: translateY(0.02em);
   }
 
   .scroll-project-tagline {

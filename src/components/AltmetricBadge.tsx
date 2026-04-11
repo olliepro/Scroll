@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 declare global {
   interface Window {
@@ -16,6 +16,23 @@ declare global {
  * <AltmetricBadge arxivId="1706.03762" />
  */
 export function AltmetricBadge({ arxivId }: { arxivId?: string }) {
+  const [showsPopover, setShowsPopover] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(hover: hover) and (pointer: fine)");
+    const updatePopoverState = () => setShowsPopover(mediaQuery.matches);
+
+    updatePopoverState();
+    mediaQuery.addEventListener("change", updatePopoverState);
+    return () => {
+      mediaQuery.removeEventListener("change", updatePopoverState);
+    };
+  }, []);
+
   useEffect(() => {
     if (!arxivId) return;
 
@@ -26,7 +43,7 @@ export function AltmetricBadge({ arxivId }: { arxivId?: string }) {
     return () => {
       window.cancelAnimationFrame(handle);
     };
-  }, [arxivId]);
+  }, [arxivId, showsPopover]);
 
   if (!arxivId) {
     return <span className="text-[11px] text-slate-500">No arXiv badge</span>;
@@ -35,9 +52,9 @@ export function AltmetricBadge({ arxivId }: { arxivId?: string }) {
   return (
     <div
       className="altmetric-embed"
-      data-badge-popover="top"
       data-badge-type="2"
       data-arxiv-id={arxivId}
+      {...(showsPopover ? { "data-badge-popover": "top" } : {})}
     />
   );
 }
