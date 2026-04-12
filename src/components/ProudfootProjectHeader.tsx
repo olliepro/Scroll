@@ -1,9 +1,17 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import {
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { Home, KeyRound, Plus, Search, X } from "lucide-react";
 
 type ProudfootProjectHeaderProps = {
   logoUrl: string;
+  mobileInlineContent?: ReactNode;
   onOpenChannelCreator: () => void;
   onOpenSearch: () => void;
   onOpenApiKeyModal: () => void;
@@ -63,6 +71,37 @@ function useCompactHeaderLayout({
   }, [actionsRef, brandRef, containerRef]);
 
   return isCompact;
+}
+
+/**
+ * Tracks whether the project header should use its narrow-screen mobile layout.
+ *
+ * @param maxWidthPx - Viewport width threshold that enables the mobile header.
+ * @returns Whether the viewport is currently at or below the mobile threshold.
+ *
+ * @example
+ * const isMobileViewport = useMobileHeaderLayout();
+ */
+function useMobileHeaderLayout(maxWidthPx = 720) {
+  const [isMobileViewport, setIsMobileViewport] = useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia(`(max-width: ${maxWidthPx}px)`).matches;
+  });
+
+  useEffect(() => {
+    const mediaQuery = window.matchMedia(`(max-width: ${maxWidthPx}px)`);
+    const updateViewportMode = (event: MediaQueryListEvent | MediaQueryList) => {
+      setIsMobileViewport(event.matches);
+    };
+
+    updateViewportMode(mediaQuery);
+    mediaQuery.addEventListener("change", updateViewportMode);
+    return () => {
+      mediaQuery.removeEventListener("change", updateViewportMode);
+    };
+  }, [maxWidthPx]);
+
+  return isMobileViewport;
 }
 
 function HeaderActionButtons({ actions }: { actions: HeaderAction[] }) {
@@ -190,6 +229,7 @@ function HeaderMenuOverlay({
  */
 export function ProudfootProjectHeader({
   logoUrl,
+  mobileInlineContent,
   onOpenChannelCreator,
   onOpenSearch,
   onOpenApiKeyModal,
@@ -216,18 +256,20 @@ export function ProudfootProjectHeader({
     brandRef,
     actionsRef: actionsMeasureRef,
   });
+  const isMobileViewport = useMobileHeaderLayout();
+  const shouldCollapseActions = isMobileViewport || isCompact;
 
   useEffect(() => {
-    if (!isCompact) setMenuOpen(false);
-  }, [isCompact]);
+    if (!shouldCollapseActions) setMenuOpen(false);
+  }, [shouldCollapseActions]);
 
   useEffect(() => {
-    const shouldLockPage = isCompact && menuOpen;
+    const shouldLockPage = shouldCollapseActions && menuOpen;
     document.body.classList.toggle("scroll-menu-open", shouldLockPage);
     return () => {
       document.body.classList.remove("scroll-menu-open");
     };
-  }, [isCompact, menuOpen]);
+  }, [menuOpen, shouldCollapseActions]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -244,8 +286,24 @@ export function ProudfootProjectHeader({
 
   return (
     <header className="scroll-project-bar shrink-0">
-      <div className="scroll-project-bar-inner" ref={containerRef}>
-        <div className="scroll-project-brand" ref={brandRef}>
+      <div
+        className={[
+          "scroll-project-bar-inner",
+          isMobileViewport ? "scroll-project-bar-inner--mobile" : "",
+        ]
+          .filter(Boolean)
+          .join(" ")}
+        ref={containerRef}
+      >
+        <div
+          className={[
+            "scroll-project-brand",
+            isMobileViewport ? "scroll-project-brand--mobile" : "",
+          ]
+            .filter(Boolean)
+            .join(" ")}
+          ref={brandRef}
+        >
           <div
             aria-hidden="true"
             className="scroll-project-mark"
@@ -258,11 +316,16 @@ export function ProudfootProjectHeader({
               maskSize: "contain",
             }}
           />
-          <h1 className="scroll-project-title">
-            <span className="scroll-project-title-alpha">α</span>
-            <span>Scroll</span>
-          </h1>
+          {!isMobileViewport && (
+            <h1 className="scroll-project-title">
+              <span className="scroll-project-title-alpha">α</span>
+              <span>Scroll</span>
+            </h1>
+          )}
         </div>
+        {isMobileViewport && mobileInlineContent && (
+          <div className="scroll-project-mobile-strip">{mobileInlineContent}</div>
+        )}
         <div className="scroll-project-measure" ref={actionsMeasureRef}>
           <HeaderActionButtons actions={actions} />
           <a className="scroll-home-link" href="/" aria-hidden="true" tabIndex={-1}>
@@ -282,11 +345,12 @@ export function ProudfootProjectHeader({
           className={[
             "scroll-project-actions",
             menuOpen ? "scroll-project-actions--menu-open" : "",
+            isMobileViewport ? "scroll-project-actions--mobile" : "",
           ]
             .filter(Boolean)
             .join(" ")}
         >
-          {isCompact ? (
+          {shouldCollapseActions ? (
             <>
               <button
                 aria-expanded={menuOpen}

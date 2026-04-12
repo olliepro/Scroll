@@ -198,7 +198,7 @@ function PaperCardComponent({
           className={clsx(
             isGallery
               ? "h-full w-full"
-              : "absolute inset-0 flex justify-center p-3 sm:p-6",
+              : "absolute inset-0 flex justify-center p-0 sm:p-6",
           )}
         >
           <motion.div
@@ -206,8 +206,10 @@ function PaperCardComponent({
             animate={{ opacity: 1, y: 0 }}
             transition={{ type: "spring", stiffness: 120, damping: 18 }}
             className={clsx(
-              "relative w-full rounded-3xl border border-white/10 overflow-hidden flex flex-col bg-gradient-to-b from-[#1a2334] via-[#121722] to-[#0b0d12] shadow-[0_0_30px_rgba(0,0,0,0.4)] [transform:translateZ(0)] [backface-visibility:hidden]",
-              isGallery ? "min-h-full" : "h-full max-w-sm sm:max-w-md",
+              "relative w-full overflow-hidden flex flex-col bg-gradient-to-b from-[#1a2334] via-[#121722] to-[#0b0d12] [transform:translateZ(0)] [backface-visibility:hidden]",
+              isGallery
+                ? "min-h-full rounded-3xl border border-white/10 shadow-[0_0_30px_rgba(0,0,0,0.4)]"
+                : "h-full max-w-none rounded-none border-x-0 border-y-0 shadow-none sm:max-w-md sm:rounded-3xl sm:border sm:border-white/10 sm:shadow-[0_0_30px_rgba(0,0,0,0.4)]",
             )}
           >
           {/* Header row */}

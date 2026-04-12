@@ -6,6 +6,8 @@ import type { Channel, SavedList } from "../types";
 type FeedPickerStripProps = {
   activeId: string;
   channels: Channel[];
+  className?: string;
+  compact?: boolean;
   longPressTriggeredRef: MutableRefObject<boolean>;
   onActivateChannel: (channelId: string) => void;
   onActivateList: (listId: string) => void;
@@ -31,6 +33,7 @@ type PickerChipProps = {
 
 function PickerChip({
   active,
+  compact = false,
   icon,
   label,
   onActivate,
@@ -39,7 +42,7 @@ function PickerChip({
   onCancelLongPress,
   title,
   unviewedCount,
-}: PickerChipProps) {
+}: PickerChipProps & { compact?: boolean }) {
   function handleTouchEnd(event: ReactTouchEvent<HTMLButtonElement>) {
     onCancelLongPress(event.nativeEvent);
   }
@@ -55,7 +58,8 @@ function PickerChip({
         onTouchMove={() => onCancelLongPress()}
         onTouchCancel={() => onCancelLongPress()}
         className={clsx(
-          "flex items-center gap-1 rounded-full border pl-2 pr-2 py-1 text-sm transition-colors",
+          "flex items-center gap-1 rounded-full border transition-colors",
+          compact ? "pl-2 pr-2 py-1 text-xs" : "pl-2 pr-2 py-1 text-sm",
           active
             ? "border-rose-400/40 bg-gradient-to-r from-rose-500/30 to-blue-500/30"
             : "border-white/10 bg-white/5 hover:bg-white/10",
@@ -70,17 +74,19 @@ function PickerChip({
           </span>
         )}
       </button>
-      <div className="ml-0 w-0 overflow-hidden transition-all duration-200 group-hover:ml-1 group-hover:w-7">
-        <button
-          type="button"
-          onClick={onDelete}
-          className="rounded-full p-1 hover:bg-white/10"
-          title="Delete"
-          aria-label={`Delete ${label}`}
-        >
-          <Trash2 className="h-3.5 w-3.5" />
-        </button>
-      </div>
+      {!compact && (
+        <div className="ml-0 w-0 overflow-hidden transition-all duration-200 group-hover:ml-1 group-hover:w-7">
+          <button
+            type="button"
+            onClick={onDelete}
+            className="rounded-full p-1 hover:bg-white/10"
+            title="Delete"
+            aria-label={`Delete ${label}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
+      )}
     </div>
   );
 }
@@ -97,6 +103,8 @@ function PickerChip({
 export function FeedPickerStrip({
   activeId,
   channels,
+  className,
+  compact = false,
   longPressTriggeredRef,
   onActivateChannel,
   onActivateList,
@@ -108,12 +116,19 @@ export function FeedPickerStrip({
   unviewedCounts,
 }: FeedPickerStripProps) {
   return (
-    <div className="overflow-x-auto px-3 py-2 no-scrollbar">
-      <div className="flex gap-2">
+    <div
+      className={clsx(
+        "overflow-x-auto no-scrollbar",
+        compact ? "min-w-0 py-0" : "px-3 py-2",
+        className,
+      )}
+    >
+      <div className={clsx("flex", compact ? "gap-1.5" : "gap-2")}>
         {channels.map((channel) => (
           <PickerChip
             key={channel.id}
             active={activeId === channel.id}
+            compact={compact}
             label={channel.name}
             title={`Keywords: ${tokenizeKeywords(channel.keywords).join(", ") || "—"} | Categories: ${channel.categories.join(", ") || "—"} | Author: ${channel.author || "—"}`}
             unviewedCount={unviewedCounts[channel.id]}
@@ -133,6 +148,7 @@ export function FeedPickerStrip({
           <PickerChip
             key={list.id}
             active={activeId === `list:${list.id}`}
+            compact={compact}
             icon={<Bookmark className="h-3.5 w-3.5" />}
             label={list.name}
             onActivate={() => {

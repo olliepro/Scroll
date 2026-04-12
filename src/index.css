@@ -140,6 +140,11 @@
     margin-left: auto;
   }
 
+  .scroll-project-mobile-strip {
+    min-width: 0;
+    flex: 1 1 auto;
+  }
+
   .scroll-project-measure {
     position: absolute;
     visibility: hidden;
@@ -836,8 +841,29 @@
       align-items: center;
     }
 
+    .scroll-project-bar-inner--mobile {
+      padding: 0.55rem 0.7rem;
+      gap: 0.6rem;
+      flex-wrap: nowrap;
+    }
+
+    .scroll-project-brand--mobile {
+      gap: 0;
+      flex: 0 0 auto;
+    }
+
+    .scroll-project-mobile-strip {
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
     .scroll-project-actions {
       margin-left: auto;
+    }
+
+    .scroll-project-actions--mobile {
+      flex: 0 0 auto;
+      gap: 0;
     }
 
     .scroll-api-modal {

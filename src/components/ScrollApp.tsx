@@ -96,6 +96,7 @@ export default function ScrollApp() {
   const [searchResults, setSearchResults] = useState<ArxivEntry[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchError, setSearchError] = useState<string | null>(null);
+  const [resumeSearchAfterSave, setResumeSearchAfterSave] = useState(false);
   useEffect(() => {
     if (adding || searching || apiKeyModalOpen) {
       document.body.style.overflow = "hidden";
@@ -500,14 +501,22 @@ export default function ScrollApp() {
       };
   }, [isGalleryView, isTouchDevice, pageIndex, scrollToIndex]);
 
-  function openSaveMenu(entry: ArxivEntry) {
+  function openSaveMenu(entry: ArxivEntry, source: "feed" | "search" = "feed") {
     markRead(entry.arxivId);
+    if (source === "search") {
+      setResumeSearchAfterSave(true);
+      setSearching(false);
+    }
     setSaveTarget(entry);
   }
 
   function closeSaveMenu() {
     setSaveTarget(null);
     setNewListName("");
+    if (resumeSearchAfterSave) {
+      setSearching(true);
+      setResumeSearchAfterSave(false);
+    }
   }
 
   function togglePaperInList(listId: string) {
@@ -680,6 +689,23 @@ export default function ScrollApp() {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(229,77,103,0.16)_0%,_transparent_58%),radial-gradient(ellipse_at_bottom_right,_rgba(63,98,186,0.16)_0%,_transparent_62%)]" />
         <ProudfootProjectHeader
           logoUrl={scrollIconUrl}
+          mobileInlineContent={
+            <FeedPickerStrip
+              activeId={activeId}
+              channels={channels}
+              className="min-[721px]:hidden"
+              compact
+              longPressTriggeredRef={longPressTriggered}
+              onActivateChannel={activateChannel}
+              onActivateList={activateList}
+              onCancelLongPress={cancelLongPress}
+              onRemoveChannel={removeChannel}
+              onRemoveList={removeList}
+              onStartLongPress={startLongPress}
+              savedLists={savedLists}
+              unviewedCounts={unviewedCounts}
+            />
+          }
           onOpenChannelCreator={() => setAdding(true)}
           onOpenSearch={() => setSearching(true)}
           onOpenApiKeyModal={() => setApiKeyModalOpen(true)}
@@ -688,6 +714,7 @@ export default function ScrollApp() {
         <FeedPickerStrip
           activeId={activeId}
           channels={channels}
+          className="hidden min-[721px]:block"
           longPressTriggeredRef={longPressTriggered}
           onActivateChannel={activateChannel}
           onActivateList={activateList}
@@ -726,7 +753,7 @@ export default function ScrollApp() {
         searchLoading={searchLoading}
         searchError={searchError}
         searchResults={searchResults}
-        onOpenSaveMenu={openSaveMenu}
+        onOpenSaveMenu={(entry) => openSaveMenu(entry, "search")}
         onMarkRead={markRead}
         isSaved={isSaved}
       />

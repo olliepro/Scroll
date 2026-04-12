@@ -1,4 +1,4 @@
-import { ExternalLink, FileDown, Heart } from "lucide-react";
+import { ExternalLink, FileDown, Heart, Search, X } from "lucide-react";
 import type { ArxivEntry } from "../types";
 import { clsx, renderLaTeX } from "../lib/utils";
 
@@ -110,10 +110,28 @@ export function SearchModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-2xl rounded-2xl border border-white/10 bg-gradient-to-b from-[#141a28] to-[#0f1320] text-white p-4"
+        className="w-full max-w-2xl rounded-2xl border border-white/10 bg-gradient-to-b from-[#141a28] to-[#0f1320] text-white p-4 shadow-[0_24px_80px_rgba(0,0,0,0.45)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="text-lg font-semibold mb-2">Search Papers</div>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <div className="inline-flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-rose-200/90">
+              <Search className="h-3.5 w-3.5" />
+              Search
+            </div>
+            <div className="mt-1 text-lg font-semibold">Search Papers</div>
+            <div className="mt-1 text-sm text-slate-400">
+              Find a paper, open it, or save it into one of your lists.
+            </div>
+          </div>
+          <button
+            className="rounded-full border border-white/10 bg-white/5 p-2 text-slate-300 transition hover:bg-white/10 hover:text-white"
+            onClick={onClose}
+            type="button"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
         <div className="flex gap-2">
           <input
             value={searchInput}
