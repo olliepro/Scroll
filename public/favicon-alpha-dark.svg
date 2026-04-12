@@ -1,10 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <rect
+    x="4"
+    y="4"
+    width="56"
+    height="56"
+    rx="16"
+    fill="#f4f6fb"
+  />
   <text
-    x="50%"
-    y="53%"
+    x="48%"
+    y="50.5%"
     fill="#0f1320"
-    font-family="Georgia, 'Times New Roman', serif"
-    font-size="52"
+    font-family="'STIX Two Text', 'Cambria Math', 'Times New Roman', serif"
+    font-size="62"
     font-style="italic"
     font-weight="700"
     text-anchor="middle"
