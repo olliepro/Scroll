@@ -17,7 +17,7 @@ export function buildFeedCacheKey(channel: Channel): string {
     keywords: channel.keywords.trim(),
     categories: [...channel.categories].sort(),
     author: channel.author?.trim() ?? "",
-    maxResults: channel.maxResults ?? 40,
+    maxResults: channel.maxResults ?? 50,
   });
 }
 

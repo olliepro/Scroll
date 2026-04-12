@@ -25,7 +25,7 @@ function buildArxivQuery(ch: Channel) {
   const params = new URLSearchParams({
     search_query: raw,
     start: "0",
-    max_results: String(ch.maxResults ?? 40),
+    max_results: String(ch.maxResults ?? 50),
     sortBy: "submittedDate",
     sortOrder: "descending",
   });

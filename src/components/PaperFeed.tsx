@@ -40,7 +40,7 @@ export function PaperFeed({
     return (
       <div className="flex h-full w-full flex-col">
         {activeList && <SavedListExportToolbar list={activeList} />}
-        <div className="mx-auto grid w-full max-w-7xl grid-cols-1 gap-3 p-3 pb-6 md:grid-cols-2 xl:grid-cols-3">
+        <div className="scroll-page-width grid w-full grid-cols-1 gap-3 p-3 pb-6 md:grid-cols-2 xl:grid-cols-3">
           {visibleEntries.map((entry, index) => (
             <PaperCard
               key={entry.id}

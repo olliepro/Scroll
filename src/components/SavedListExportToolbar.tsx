@@ -70,7 +70,7 @@ export function SavedListExportToolbar({ list }: { list: SavedList }) {
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-3 pt-3 sm:flex-row sm:items-end sm:justify-between">
+    <div className="scroll-page-width flex w-full flex-col gap-3 px-3 pt-3 sm:flex-row sm:items-end sm:justify-between">
       <div className="min-w-0">
         <p className="text-[11px] uppercase tracking-[0.24em] text-slate-500">
           Saved List

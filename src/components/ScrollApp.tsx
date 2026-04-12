@@ -6,9 +6,6 @@ import {
   useCallback,
   startTransition,
 } from "react";
-import {
-  ChevronDown,
-} from "lucide-react";
 import { fetchArxiv, searchArxiv } from "../lib/arxiv";
 import {
   buildFeedCacheKey,
@@ -24,7 +21,6 @@ import {
 import { clsx } from "../lib/utils";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import {
-  CATEGORY_LABELS,
   LS_CHANNELS,
   LS_LISTS,
   LS_LAST_CHANNEL,
@@ -42,9 +38,14 @@ import type {
 } from "../types";
 import { loadOrgInfoForEntries } from "../lib/loadOrgInfoForEntries";
 import { ApiKeyModal } from "./ApiKeyModal";
+import { FeedDeleteConfirmation } from "./FeedDeleteConfirmation";
 import { FeedPickerStrip } from "./FeedPickerStrip";
+import {
+  FeedEditorModal,
+  type FeedEditorDraft,
+  type FeedEditorTarget,
+} from "./FeedEditorModal";
 import { FeedStateOverlay } from "./FeedStateOverlay";
-import { KeywordsChipsInput } from "./KeywordsChipsInput";
 import { PaperFeed } from "./PaperFeed";
 import { ProudfootProjectHeader } from "./ProudfootProjectHeader";
 import { SaveToListModal } from "./SaveToListModal";
@@ -52,6 +53,79 @@ import { SearchModal } from "./SearchModal";
 import "../styles/no-scrollbar";
 
 const scrollIconUrl = new URL("../assets/scroll.png", import.meta.url).href;
+const DEFAULT_CHANNEL_MAX_RESULTS = 50;
+
+type PendingFeedDeletion = {
+  id: string;
+  kind: "channel" | "list";
+  name: string;
+};
+
+/**
+ * Builds a stable-ish random feed identifier from a display name.
+ *
+ * @param name - User-provided channel or list name.
+ * @returns A slug plus random suffix suitable for local ids.
+ *
+ * @example
+ * const id = buildFeedId("My Vision Feed");
+ */
+function buildFeedId(name: string): string {
+  return (
+    name.toLowerCase().replace(/\s+/g, "-") +
+    "-" +
+    Math.random().toString(36).slice(2, 7)
+  );
+}
+
+/**
+ * Creates a blank editable channel payload for the shared feed editor.
+ *
+ * @returns An empty channel draft with sensible defaults.
+ */
+function createBlankChannelDraft(): FeedEditorDraft {
+  return {
+    kind: "channel",
+    name: "",
+    keywords: "",
+    categories: [],
+    author: "",
+    maxResults: DEFAULT_CHANNEL_MAX_RESULTS,
+  };
+}
+
+/**
+ * Builds the editable channel payload from a saved channel record.
+ *
+ * @param channel - Existing channel being edited.
+ * @returns The editor draft with normalized optional fields.
+ */
+function createChannelDraft(channel: Channel): FeedEditorDraft {
+  return {
+    kind: "channel",
+    id: channel.id,
+    name: channel.name,
+    keywords: channel.keywords,
+    categories: [...channel.categories],
+    author: channel.author ?? "",
+    maxResults: channel.maxResults ?? DEFAULT_CHANNEL_MAX_RESULTS,
+  };
+}
+
+/**
+ * Builds the editable list payload from a saved list record.
+ *
+ * @param list - Existing saved list being edited.
+ * @returns The editor draft preserving the current papers.
+ */
+function createListDraft(list: SavedList): FeedEditorDraft {
+  return {
+    kind: "list",
+    id: list.id,
+    name: list.name,
+    papers: [...list.papers],
+  };
+}
 
 function getStatusKey(arxivId: string): string {
   return arxivId.replace(/v\d+$/i, "");
@@ -77,20 +151,12 @@ export default function ScrollApp() {
   const [orgCache, setOrgCache] = useLocalStorage<Record<string, OrgInfo[]>>(LS_ORG_CACHE, {});
   const [feedCache, setFeedCache] = useLocalStorage<Record<string, FeedCacheEntry>>(LS_FEED_CACHE, {});
   const [orgLoadingCount, setOrgLoadingCount] = useState(0);
-  const [adding, setAdding] = useState(false);
+  const [feedEditorTarget, setFeedEditorTarget] = useState<FeedEditorTarget | null>(null);
+  const [pendingFeedDeletion, setPendingFeedDeletion] = useState<PendingFeedDeletion | null>(null);
   const [searching, setSearching] = useState(false);
   const [apiKeyModalOpen, setApiKeyModalOpen] = useState(() => {
     if (typeof window === "undefined") return false;
     return new URLSearchParams(window.location.search).get("modal") === "api-key";
-  });
-  const [categoriesOpen, setCategoriesOpen] = useState(false);
-  const [newChannel, setNewChannel] = useState<Channel>({
-    id: "",
-    name: "",
-    keywords: "",
-    categories: [],
-    author: "",
-    maxResults: 40,
   });
   const [searchInput, setSearchInput] = useState("");
   const [searchResults, setSearchResults] = useState<ArxivEntry[]>([]);
@@ -98,7 +164,7 @@ export default function ScrollApp() {
   const [searchError, setSearchError] = useState<string | null>(null);
   const [resumeSearchAfterSave, setResumeSearchAfterSave] = useState(false);
   useEffect(() => {
-    if (adding || searching || apiKeyModalOpen) {
+    if (feedEditorTarget || pendingFeedDeletion || searching || apiKeyModalOpen) {
       document.body.style.overflow = "hidden";
     } else {
       document.body.style.overflow = "";
@@ -106,7 +172,7 @@ export default function ScrollApp() {
     return () => {
       document.body.style.overflow = "";
     };
-  }, [adding, apiKeyModalOpen, searching]);
+  }, [apiKeyModalOpen, feedEditorTarget, pendingFeedDeletion, searching]);
 
   useEffect(() => {
     let cancelled = false;
@@ -209,10 +275,11 @@ export default function ScrollApp() {
     if (longPressTimeout.current) clearTimeout(longPressTimeout.current);
     longPressTimeout.current = window.setTimeout(() => {
       longPressTriggered.current = true;
-      if (window.confirm(`Delete ${name}?`)) {
-        if (type === "channel") removeChannel(id);
-        else removeList(id);
+      if (type === "channel") {
+        openFeedDeletionConfirmation({ id: id, kind: "channel", name: name });
+        return;
       }
+      openFeedDeletionConfirmation({ id: id, kind: "list", name: name });
     }, 600);
   }
 
@@ -546,10 +613,7 @@ export default function ScrollApp() {
 
   function createList() {
     if (!saveTarget || !newListName.trim()) return;
-    const id =
-      newListName.toLowerCase().replace(/\s+/g, "-") +
-      "-" +
-      Math.random().toString(36).slice(2, 7);
+    const id = buildFeedId(newListName.trim());
     const newList: SavedList = {
       id,
       name: newListName.trim(),
@@ -618,34 +682,171 @@ export default function ScrollApp() {
     setOpenaiKeyStorageMode("encrypted-browser");
   }
 
-  function addChannel(ch: Omit<Channel, "id">) {
-    const id =
-      ch.name.toLowerCase().replace(/\s+/g, "-") +
-      "-" +
-      Math.random().toString(36).slice(2, 7);
-    const newCh: Channel = { id, ...ch };
+  function closeFeedEditor() {
+    setFeedEditorTarget(null);
+  }
+
+  function openFeedDeletionConfirmation(target: PendingFeedDeletion) {
+    setFeedEditorTarget(null);
+    setPendingFeedDeletion(target);
+  }
+
+  function closeFeedDeletionConfirmation() {
+    setPendingFeedDeletion(null);
+  }
+
+  function addChannel(channelInput: Omit<Channel, "id">) {
+    const newCh: Channel = {
+      id: buildFeedId(channelInput.name.trim()),
+      ...channelInput,
+    };
     setChannels((prev) => [newCh, ...prev]);
-    setActiveId(id);
-    setAdding(false);
-    setNewChannel({
-      id: "",
-      name: "",
-      keywords: "",
-      categories: [],
-      author: "",
-      maxResults: 40,
+    setActiveId(newCh.id);
+    closeFeedEditor();
+  }
+
+  function replaceChannel(originalId: string, channelInput: Omit<Channel, "id">) {
+    const replacementChannel: Channel = {
+      id: buildFeedId(channelInput.name.trim()),
+      ...channelInput,
+    };
+    setChannels((prev) => {
+      const targetIndex = prev.findIndex((channel) => channel.id === originalId);
+      if (targetIndex < 0) return [replacementChannel, ...prev];
+      const nextChannels = [...prev];
+      nextChannels.splice(targetIndex, 1, replacementChannel);
+      return nextChannels;
     });
-    setCategoriesOpen(false);
+    setActiveId(replacementChannel.id);
+    closeFeedEditor();
   }
 
   function removeChannel(id: string) {
-    setChannels((prev) => prev.filter((c) => c.id !== id));
-    if (activeId === id) setActiveId(channels[0]?.id || "");
+    setChannels((prev) => {
+      const nextChannels = prev.filter((channel) => channel.id !== id);
+      if (activeId === id) {
+        setActiveId(nextChannels[0]?.id ?? (savedLists[0] ? `list:${savedLists[0].id}` : ""));
+      }
+      return nextChannels;
+    });
+    closeFeedEditor();
+    closeFeedDeletionConfirmation();
+  }
+
+  function replaceList(originalId: string, nextListDraft: Extract<FeedEditorDraft, { kind: "list" }>) {
+    const replacementList: SavedList = {
+      id: buildFeedId(nextListDraft.name.trim()),
+      name: nextListDraft.name.trim(),
+      papers: nextListDraft.papers,
+    };
+    setSavedLists((prev) => {
+      const targetIndex = prev.findIndex((list) => list.id === originalId);
+      if (targetIndex < 0) return [replacementList, ...prev];
+      const nextLists = [...prev];
+      nextLists.splice(targetIndex, 1, replacementList);
+      return nextLists;
+    });
+    setActiveId(`list:${replacementList.id}`);
+    closeFeedEditor();
   }
 
   function removeList(id: string) {
-    setSavedLists((prev) => prev.filter((l) => l.id !== id));
-    if (activeId === `list:${id}`) setActiveId(channels[0]?.id || "");
+    setSavedLists((prev) => {
+      const nextLists = prev.filter((list) => list.id !== id);
+      if (activeId === `list:${id}`) {
+        setActiveId(channels[0]?.id ?? (nextLists[0] ? `list:${nextLists[0].id}` : ""));
+      }
+      return nextLists;
+    });
+    closeFeedEditor();
+    closeFeedDeletionConfirmation();
+  }
+
+  function openChannelCreator() {
+    setFeedEditorTarget({ mode: "create", feed: createBlankChannelDraft() });
+  }
+
+  function openChannelEditor(channelId: string) {
+    const channel = channels.find((candidate) => candidate.id === channelId);
+    if (!channel) return;
+    setFeedEditorTarget({
+      mode: "edit",
+      feed: createChannelDraft(channel),
+    });
+  }
+
+  function openListEditor(listId: string) {
+    const list = savedLists.find((candidate) => candidate.id === listId);
+    if (!list) return;
+    setFeedEditorTarget({
+      mode: "edit",
+      feed: createListDraft(list),
+    });
+  }
+
+  function openActiveFeedEditor() {
+    if (activeList) {
+      openListEditor(activeList.id);
+      return;
+    }
+    if (activeChannel) openChannelEditor(activeChannel.id);
+  }
+
+  function openChannelDeletionConfirmation(channelId: string) {
+    const channel = channels.find((candidate) => candidate.id === channelId);
+    if (!channel) return;
+    openFeedDeletionConfirmation({
+      id: channel.id,
+      kind: "channel",
+      name: channel.name,
+    });
+  }
+
+  function openListDeletionConfirmation(listId: string) {
+    const list = savedLists.find((candidate) => candidate.id === listId);
+    if (!list) return;
+    openFeedDeletionConfirmation({
+      id: list.id,
+      kind: "list",
+      name: list.name,
+    });
+  }
+
+  function saveFeedEditor(draft: FeedEditorDraft) {
+    if (!feedEditorTarget) return;
+    if (draft.kind === "channel") {
+      const normalizedChannel: Omit<Channel, "id"> = {
+        name: draft.name.trim(),
+        keywords: draft.keywords.trim(),
+        categories: draft.categories,
+        author: draft.author.trim() || undefined,
+        maxResults: draft.maxResults,
+      };
+      if (feedEditorTarget.mode === "create") {
+        addChannel(normalizedChannel);
+        return;
+      }
+      if (draft.id) replaceChannel(draft.id, normalizedChannel);
+      return;
+    }
+    if (draft.id) replaceList(draft.id, draft);
+  }
+
+  function deleteFeedEditorTarget(draft: FeedEditorDraft) {
+    if (draft.kind === "channel" && draft.id) {
+      removeChannel(draft.id);
+      return;
+    }
+    if (draft.kind === "list") removeList(draft.id);
+  }
+
+  function confirmPendingFeedDeletion() {
+    if (!pendingFeedDeletion) return;
+    if (pendingFeedDeletion.kind === "channel") {
+      removeChannel(pendingFeedDeletion.id);
+      return;
+    }
+    removeList(pendingFeedDeletion.id);
   }
 
   const firstUnseenIndex = useMemo(
@@ -689,6 +890,7 @@ export default function ScrollApp() {
         <div className="pointer-events-none absolute inset-0 -z-10 bg-[radial-gradient(ellipse_at_top_left,_rgba(229,77,103,0.16)_0%,_transparent_58%),radial-gradient(ellipse_at_bottom_right,_rgba(63,98,186,0.16)_0%,_transparent_62%)]" />
         <ProudfootProjectHeader
           logoUrl={scrollIconUrl}
+          currentEditorLabel={activeList ? "Edit List" : "Edit Channel"}
           mobileInlineContent={
             <FeedPickerStrip
               activeId={activeId}
@@ -699,14 +901,17 @@ export default function ScrollApp() {
               onActivateChannel={activateChannel}
               onActivateList={activateList}
               onCancelLongPress={cancelLongPress}
-              onRemoveChannel={removeChannel}
-              onRemoveList={removeList}
+              onEditChannel={openChannelEditor}
+              onEditList={openListEditor}
+              onRemoveChannel={openChannelDeletionConfirmation}
+              onRemoveList={openListDeletionConfirmation}
               onStartLongPress={startLongPress}
               savedLists={savedLists}
               unviewedCounts={unviewedCounts}
             />
           }
-          onOpenChannelCreator={() => setAdding(true)}
+          onOpenChannelCreator={openChannelCreator}
+          onOpenCurrentEditor={openActiveFeedEditor}
           onOpenSearch={() => setSearching(true)}
           onOpenApiKeyModal={() => setApiKeyModalOpen(true)}
         />
@@ -719,12 +924,31 @@ export default function ScrollApp() {
           onActivateChannel={activateChannel}
           onActivateList={activateList}
           onCancelLongPress={cancelLongPress}
-          onRemoveChannel={removeChannel}
-          onRemoveList={removeList}
+          onEditChannel={openChannelEditor}
+          onEditList={openListEditor}
+          onRemoveChannel={openChannelDeletionConfirmation}
+          onRemoveList={openListDeletionConfirmation}
           onStartLongPress={startLongPress}
           savedLists={savedLists}
           unviewedCounts={unviewedCounts}
         />
+
+      {pendingFeedDeletion && (
+        <FeedDeleteConfirmation
+          name={pendingFeedDeletion.name}
+          noun={pendingFeedDeletion.kind}
+          onCancel={closeFeedDeletionConfirmation}
+          onConfirm={confirmPendingFeedDeletion}
+        />
+      )}
+
+      <FeedEditorModal
+        isOpen={feedEditorTarget !== null}
+        target={feedEditorTarget}
+        onClose={closeFeedEditor}
+        onDelete={deleteFeedEditorTarget}
+        onSave={saveFeedEditor}
+      />
 
       {saveTarget && (
         <SaveToListModal
@@ -767,167 +991,6 @@ export default function ScrollApp() {
         repoUrl="https://github.com/olliepro/Scroll"
         storageMode={openaiKeyStorageMode}
       />
-
-      {adding && (
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/80 backdrop-blur-sm p-4 overflow-hidden"
-          style={{ height: "calc(var(--vh, 1vh) * 100)" }}
-          onClick={() => {
-            setAdding(false);
-            setCategoriesOpen(false);
-          }}
-        >
-          <div
-            className="w-full max-w-lg rounded-2xl border border-white/10 bg-gradient-to-b from-[#141a28] to-[#0f1320] backdrop-blur-xl text-white p-4 overflow-y-auto"
-            style={{ maxHeight: "calc(var(--vh, 1vh) * 100)" }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="text-lg font-semibold">Create a Channel</div>
-            <div className="text-slate-400 text-sm">
-              Channels are sets of filters: keywords and arXiv categories. Newest
-              first.
-            </div>
-
-            <div className="space-y-3 mt-3">
-              <div>
-                <label className="text-sm text-slate-300">Name</label>
-                <input
-                  value={newChannel.name}
-                  onChange={(e) =>
-                    setNewChannel((p) => ({ ...p, name: e.target.value }))
-                  }
-                  placeholder="My Vision + LLMs"
-                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
-                />
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-300">Keywords</label>
-                <div className="mt-1">
-                  <KeywordsChipsInput
-                    value={newChannel.keywords}
-                    onChange={(v) =>
-                      setNewChannel((p) => ({ ...p, keywords: v }))
-                    }
-                    placeholder={"Type a keyword, press Enter — use quotes for phrases"}
-                  />
-                </div>
-                <div className="text-[11px] text-slate-400 mt-1">
-                  Example: <code>"vision-language" retrieval RAG "policy gradient"</code>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-300">Author</label>
-                <input
-                  value={newChannel.author ?? ""}
-                  onChange={(e) =>
-                    setNewChannel((p) => ({ ...p, author: e.target.value }))
-                  }
-                  placeholder="First Last"
-                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
-                />
-                <div className="text-[11px] text-slate-400 mt-1">
-                  Example: <code>Yann LeCun</code>
-                </div>
-              </div>
-
-              <div>
-                <button
-                  type="button"
-                  onClick={() => setCategoriesOpen((o) => !o)}
-                  className="flex items-center justify-between w-full text-sm text-slate-300"
-                >
-                  Categories
-                  <ChevronDown
-                    className={clsx(
-                      "h-4 w-4 transition-transform",
-                      categoriesOpen && "rotate-180"
-                    )}
-                  />
-                </button>
-                {categoriesOpen && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {Object.entries(CATEGORY_LABELS).map(([code, label]) => {
-                      const active = newChannel.categories.includes(code);
-                      return (
-                        <button
-                          key={code}
-                          onClick={() =>
-                            setNewChannel((p) => ({
-                              ...p,
-                              categories: active
-                                ? p.categories.filter((c) => c !== code)
-                                : [...p.categories, code],
-                            }))
-                          }
-                          className={clsx(
-                            "px-2.5 py-1 rounded-full text-xs border",
-                            active
-                              ? "bg-rose-500/25 border-rose-400 text-rose-100"
-                              : "bg-white/5 border-white/10 text-slate-300 hover:bg-white/10",
-                          )}
-                        >
-                          {label}
-                          <span className="opacity-60 ml-1">({code})</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-sm text-slate-300">Items in feed</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={100}
-                  value={newChannel.maxResults}
-                  onChange={(e) =>
-                    setNewChannel((p) => ({
-                      ...p,
-                      maxResults: Number(e.target.value),
-                    }))
-                  }
-                  className="mt-1 w-full bg-black/40 border border-white/10 text-white rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-rose-500/50"
-                />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <button
-                  className="px-3 py-1.5 rounded-md bg-white/5 border border-white/10"
-                  onClick={() => {
-                    setAdding(false);
-                    setCategoriesOpen(false);
-                  }}
-                >
-                  Cancel
-                </button>
-                <button
-                  disabled={!newChannel.name.trim()}
-                  className={clsx(
-                    "px-3 py-1.5 rounded-md",
-                    newChannel.name.trim()
-                      ? "bg-gradient-to-r from-rose-500 to-blue-500 shadow-lg shadow-black/30"
-                      : "bg-white/10 text-white/50",
-                  )}
-                  onClick={() =>
-                    addChannel({
-                      name: newChannel.name.trim(),
-                      keywords: newChannel.keywords.trim(),
-                      categories: newChannel.categories,
-                      author: newChannel.author?.trim() || undefined,
-                      maxResults: newChannel.maxResults,
-                    })
-                  }
-                >
-                  Create
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <div
         ref={containerRef}

@@ -7,11 +7,13 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { Home, KeyRound, Plus, Search, X } from "lucide-react";
+import { Home, KeyRound, Pencil, Plus, Search, X } from "lucide-react";
 
 type ProudfootProjectHeaderProps = {
   logoUrl: string;
   mobileInlineContent?: ReactNode;
+  currentEditorLabel?: string;
+  onOpenCurrentEditor?: () => void;
   onOpenChannelCreator: () => void;
   onOpenSearch: () => void;
   onOpenApiKeyModal: () => void;
@@ -131,9 +133,13 @@ function HeaderActionButtons({ actions }: { actions: HeaderAction[] }) {
 }
 
 function HeaderMenuItems({
+  currentEditorLabel,
+  onOpenCurrentEditor,
   actions,
   onCloseMenu,
 }: {
+  currentEditorLabel?: string;
+  onOpenCurrentEditor?: () => void;
   actions: HeaderAction[];
   onCloseMenu: () => void;
 }) {
@@ -148,6 +154,20 @@ function HeaderMenuItems({
         <Home className="h-4 w-4" />
         Home
       </a>
+      {currentEditorLabel && onOpenCurrentEditor && (
+        <button
+          className="scroll-project-menu-item"
+          onClick={() => {
+            onCloseMenu();
+            onOpenCurrentEditor();
+          }}
+          role="menuitem"
+          type="button"
+        >
+          <Pencil className="h-4 w-4" />
+          {currentEditorLabel}
+        </button>
+      )}
       {actions.map((action) => {
         const Icon = action.icon;
         return (
@@ -176,9 +196,13 @@ function HeaderMenuItems({
 }
 
 function HeaderMenuOverlay({
+  currentEditorLabel,
+  onOpenCurrentEditor,
   actions,
   onCloseMenu,
 }: {
+  currentEditorLabel?: string;
+  onOpenCurrentEditor?: () => void;
   actions: HeaderAction[];
   onCloseMenu: () => void;
 }) {
@@ -206,7 +230,12 @@ function HeaderMenuOverlay({
             <X className="h-4 w-4" />
           </button>
         </div>
-        <HeaderMenuItems actions={actions} onCloseMenu={onCloseMenu} />
+        <HeaderMenuItems
+          currentEditorLabel={currentEditorLabel}
+          onOpenCurrentEditor={onOpenCurrentEditor}
+          actions={actions}
+          onCloseMenu={onCloseMenu}
+        />
       </div>
     </div>,
     document.body,
@@ -230,6 +259,8 @@ function HeaderMenuOverlay({
 export function ProudfootProjectHeader({
   logoUrl,
   mobileInlineContent,
+  currentEditorLabel,
+  onOpenCurrentEditor,
   onOpenChannelCreator,
   onOpenSearch,
   onOpenApiKeyModal,
@@ -364,7 +395,14 @@ export function ProudfootProjectHeader({
                   menu
                 </span>
               </button>
-              {menuOpen && <HeaderMenuOverlay actions={actions} onCloseMenu={() => setMenuOpen(false)} />}
+              {menuOpen && (
+                <HeaderMenuOverlay
+                  currentEditorLabel={currentEditorLabel}
+                  onOpenCurrentEditor={onOpenCurrentEditor}
+                  actions={actions}
+                  onCloseMenu={() => setMenuOpen(false)}
+                />
+              )}
             </>
           ) : (
             <>

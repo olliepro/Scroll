@@ -1,5 +1,5 @@
 import type { MutableRefObject, TouchEvent as ReactTouchEvent } from "react";
-import { Bookmark, Trash2 } from "lucide-react";
+import { Bookmark, Pencil, Trash2 } from "lucide-react";
 import { clsx, tokenizeKeywords } from "../lib/utils";
 import type { Channel, SavedList } from "../types";
 
@@ -12,6 +12,8 @@ type FeedPickerStripProps = {
   onActivateChannel: (channelId: string) => void;
   onActivateList: (listId: string) => void;
   onCancelLongPress: (event?: TouchEvent) => void;
+  onEditChannel: (channelId: string) => void;
+  onEditList: (listId: string) => void;
   onRemoveChannel: (channelId: string) => void;
   onRemoveList: (listId: string) => void;
   onStartLongPress: (type: "channel" | "list", id: string, name: string) => void;
@@ -24,6 +26,7 @@ type PickerChipProps = {
   icon?: React.ReactNode;
   label: string;
   onActivate: () => void;
+  onEdit: () => void;
   onDelete: () => void;
   onStartLongPress: () => void;
   onCancelLongPress: (event?: TouchEvent) => void;
@@ -37,6 +40,7 @@ function PickerChip({
   icon,
   label,
   onActivate,
+  onEdit,
   onDelete,
   onStartLongPress,
   onCancelLongPress,
@@ -58,15 +62,15 @@ function PickerChip({
         onTouchMove={() => onCancelLongPress()}
         onTouchCancel={() => onCancelLongPress()}
         className={clsx(
-          "flex items-center gap-1 rounded-full border transition-colors",
-          compact ? "pl-2 pr-2 py-1 text-xs" : "pl-2 pr-2 py-1 text-sm",
+          "flex shrink-0 items-center gap-1 rounded-full border transition-colors",
+          compact ? "min-h-8 px-2.5 py-1 text-xs" : "pl-2 pr-2 py-1 text-sm",
           active
             ? "border-rose-400/40 bg-gradient-to-r from-rose-500/30 to-blue-500/30"
             : "border-white/10 bg-white/5 hover:bg-white/10",
-          Boolean(icon) && "border-dashed",
+          Boolean(icon) && !compact && "border-dashed",
         )}
       >
-        {icon}
+        {!compact && icon}
         <span className="whitespace-nowrap">{label}</span>
         {(unviewedCount ?? 0) > 0 && (
           <span className="inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-red-600 px-1.5 text-xs text-white">
@@ -75,7 +79,16 @@ function PickerChip({
         )}
       </button>
       {!compact && (
-        <div className="ml-0 w-0 overflow-hidden transition-all duration-200 group-hover:ml-1 group-hover:w-7">
+        <div className="ml-0 flex w-0 overflow-hidden transition-all duration-200 group-hover:ml-1 group-hover:w-[3.7rem]">
+          <button
+            type="button"
+            onClick={onEdit}
+            className="rounded-full p-1 hover:bg-white/10"
+            title="Edit"
+            aria-label={`Edit ${label}`}
+          >
+            <Pencil className="h-3.5 w-3.5" />
+          </button>
           <button
             type="button"
             onClick={onDelete}
@@ -109,6 +122,8 @@ export function FeedPickerStrip({
   onActivateChannel,
   onActivateList,
   onCancelLongPress,
+  onEditChannel,
+  onEditList,
   onRemoveChannel,
   onRemoveList,
   onStartLongPress,
@@ -123,43 +138,47 @@ export function FeedPickerStrip({
         className,
       )}
     >
-      <div className={clsx("flex", compact ? "gap-1.5" : "gap-2")}>
-        {channels.map((channel) => (
-          <PickerChip
-            key={channel.id}
-            active={activeId === channel.id}
-            compact={compact}
-            label={channel.name}
-            title={`Keywords: ${tokenizeKeywords(channel.keywords).join(", ") || "—"} | Categories: ${channel.categories.join(", ") || "—"} | Author: ${channel.author || "—"}`}
-            unviewedCount={unviewedCounts[channel.id]}
-            onActivate={() => {
-              if (longPressTriggeredRef.current) return;
-              onActivateChannel(channel.id);
-            }}
-            onDelete={() => onRemoveChannel(channel.id)}
-            onStartLongPress={() =>
-              onStartLongPress("channel", channel.id, channel.name)
-            }
-            onCancelLongPress={onCancelLongPress}
-          />
-        ))}
-        {savedLists.length > 0 && <div className="w-px bg-white/10" aria-hidden="true" />}
-        {savedLists.map((list) => (
-          <PickerChip
-            key={list.id}
-            active={activeId === `list:${list.id}`}
-            compact={compact}
-            icon={<Bookmark className="h-3.5 w-3.5" />}
-            label={list.name}
-            onActivate={() => {
-              if (longPressTriggeredRef.current) return;
-              onActivateList(list.id);
-            }}
-            onDelete={() => onRemoveList(list.id)}
-            onStartLongPress={() => onStartLongPress("list", list.id, list.name)}
-            onCancelLongPress={onCancelLongPress}
-          />
-        ))}
+      <div className={compact ? undefined : "scroll-page-width"}>
+        <div className={clsx("flex", compact ? "gap-1.5" : "min-w-full w-max gap-2")}>
+          {channels.map((channel) => (
+            <PickerChip
+              key={channel.id}
+              active={activeId === channel.id}
+              compact={compact}
+              label={channel.name}
+              title={`Keywords: ${tokenizeKeywords(channel.keywords).join(", ") || "—"} | Categories: ${channel.categories.join(", ") || "—"} | Author: ${channel.author || "—"}`}
+              unviewedCount={unviewedCounts[channel.id]}
+              onActivate={() => {
+                if (longPressTriggeredRef.current) return;
+                onActivateChannel(channel.id);
+              }}
+              onEdit={() => onEditChannel(channel.id)}
+              onDelete={() => onRemoveChannel(channel.id)}
+              onStartLongPress={() =>
+                onStartLongPress("channel", channel.id, channel.name)
+              }
+              onCancelLongPress={onCancelLongPress}
+            />
+          ))}
+          {savedLists.length > 0 && <div className="w-px bg-white/10" aria-hidden="true" />}
+          {savedLists.map((list) => (
+            <PickerChip
+              key={list.id}
+              active={activeId === `list:${list.id}`}
+              compact={compact}
+              icon={<Bookmark className="h-3.5 w-3.5" />}
+              label={list.name}
+              onActivate={() => {
+                if (longPressTriggeredRef.current) return;
+                onActivateList(list.id);
+              }}
+              onEdit={() => onEditList(list.id)}
+              onDelete={() => onRemoveList(list.id)}
+              onStartLongPress={() => onStartLongPress("list", list.id, list.name)}
+              onCancelLongPress={onCancelLongPress}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
