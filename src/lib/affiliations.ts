@@ -159,7 +159,7 @@ const SYS_INSTRUCTIONS =
 export async function extractOrgsWithOpenAI(
   authorBlockText: string,
   apiKey: string,
-  model = "gpt-5-nano",
+  model = "gpt-6-luna",
 ): Promise<string[]> {
   if (!authorBlockText.trim()) return [];
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
@@ -170,7 +170,7 @@ export async function extractOrgsWithOpenAI(
     },
     body: JSON.stringify({
       model,
-      reasoning_effort: "minimal",
+      reasoning_effort: "low",
       verbosity: "low",
       messages: [
         { role: "system", content: SYS_INSTRUCTIONS },

@@ -116,12 +116,12 @@ function ApiKeyFlowDetails({ repoUrl }: { repoUrl: string }) {
             <code>api.openai.com</code> with your OpenAI API key.
           </li>
           <li>
-            GPT-5 Nano returns normalized institution names, and the app
+            GPT-6 Luna returns normalized institution names, and the app
             renders them as badge chips on the paper card.
           </li>
         </ol>
         <p>
-          This path is intentionally cheap. It uses OpenAI&apos;s GPT-5 Nano
+          This path is intentionally cheap. It uses OpenAI&apos;s GPT-6 Luna
           model for lightweight affiliation extraction instead of a larger
           model.
         </p>
@@ -210,7 +210,7 @@ export function ApiKeyModal({
             <p className="scroll-api-subtitle">
               Turn raw author lines into institution badges on paper cards. This
               accepts an OpenAI API key only, not ChatGPT login credentials.
-              Super cheap affiliation extraction, powered by GPT-5 Nano.
+              Super cheap affiliation extraction, powered by GPT-6 Luna.
             </p>
             <div className="scroll-api-trust-row">
               <span className="scroll-api-trust-pill">
@@ -223,7 +223,7 @@ export function ApiKeyModal({
               </span>
               <span className="scroll-api-trust-pill">
                 <Sparkles className="h-4 w-4" />
-                GPT-5 Nano, low cost
+                GPT-6 Luna, low cost
               </span>
             </div>
             <a
